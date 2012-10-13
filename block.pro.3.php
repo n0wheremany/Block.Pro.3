@@ -9,7 +9,7 @@ email: p13mm@yandex.ru
 =====================================================
 Файл:  block.pro.3.php
 ------------------------------------------------------
-Версия: 3.0a (27.09.2012)
+Версия: 3.0a (14.10.2012)
 Альфаверсия - пробуем ООП (подсмотрено в разных местах, на 90% у Александра Фомина)
 =====================================================*/
 
@@ -36,7 +36,7 @@ if(!class_exists('BlockPro')) {
 		/*
 		 * Главный метод класса BlockPro
 		 */
-		public function run()
+		public function runBlockPro()
 		{
 			if ($this->config['cache_live']) {
 				$this->config['prefix'] = '';
@@ -46,7 +46,7 @@ if(!class_exists('BlockPro')) {
 			// Пробуем подгрузить содержимое модуля из кэша
 			$output = false;
 
-			if(/*$this->dle_api->dle_config['allow_cache'] == 'yes'*/ !$this->config['nocache'])
+			if( !$this->config['nocache'])
 			{
 				$output = $this->dle_api->load_from_cache($this->config['prefix'].'bp_'.md5(implode('_', $this->config)));
 			}
@@ -60,6 +60,8 @@ if(!class_exists('BlockPro')) {
 			
 			// Если в кэше ничего не найдено, генерируем модуль заново
 
+			$wheres = array();
+
 			/**
 			 * Service function - take params from table
 			 * @param $table string - название таблицы
@@ -72,27 +74,39 @@ if(!class_exists('BlockPro')) {
 			 * @param $sort_order - направление сортировки
 			 * @return array с данными или false если mysql вернуль 0 рядов
 			 */
-			$news = $this->dle_api->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
+			//$news = $this->dle_api->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
+
+			$news = $this->dle_api->load_table (PREFIX."_post", "*", '1', true, 0, 10, '', 'desc');
 
 
-			/*
-			*
-			*
-			*
-			*
-			*
-			*/
+			if(empty($news)) $news = array();
 
-			$output = $this->applyTemplate($this->config['template'],
-                array(
-                    '{title}'          => $news["title"],
-                    // '{description}'   => $description,
-                ),
-                array(
-                    // "'\[show_name\\](.*?)\[/show_name\]'si" => !empty($name)?"\\1":'',
-                    // "'\[show_description\\](.*?)\[/show_description\]'si" => !empty($description)?"\\1":'',
-                )
-            );
+			//Пробегаем по массиву с новостями и формируем список
+			$output = '';
+			foreach ($news as $key => $newsItem) {
+				// $newsItem
+			
+
+				/**
+				 *
+				 *
+				 *
+				 *
+				 *
+				 */
+
+				$output .= $this->applyTemplate($this->config['template'],
+					array(
+						'{title}'          	=> $newsItem["title"],
+						'{full-link}'		=> $this->getPostUrl($newsItem),
+						// '{description}'   => $description,
+					),
+					array(
+						// "'\[show_name\\](.*?)\[/show_name\]'si" => !empty($name)?"\\1":'',
+						// "'\[show_description\\](.*?)\[/show_description\]'si" => !empty($description)?"\\1":'',
+					)
+				);
+			}
 
 			// Если разрешено кэширование, сохраняем в кэш по данной конфигурации
 			if(/*$this->dle_api->dle_config['allow_cache'] == 'yes'*/ !$this->config['nocache'])
@@ -104,6 +118,42 @@ if(!class_exists('BlockPro')) {
 			$this->showOutput($output);
 		}
 
+
+		/*
+		 * @param $post - массив с информацией о статье
+		 * @return string URL для категории
+		 */
+		public function getPostUrl($post)
+		{
+			if($this->dle_api->dle_config['allow_alt_url'] == 'yes')
+			{
+				if(
+					($this->dle_api->dle_config['version_id'] < 9.6 && $post['flag'] && $this->dle_api->dle_config['seo_type'])
+						||
+					($this->dle_api->dle_config['version_id'] >= 9.6 && ($this->dle_api->dle_config['seo_type'] == 1 || $this->dle_api->dle_config['seo_type'] == 2))
+				)
+				{
+					if(intval($post['category']) && $this->dle_api->dle_config['seo_type'] == 2)
+					{
+						$url = $this->dle_api->dle_config['http_home_url'].get_url(intval($post['category'])).'/'.$post['id'].'-'.$post['alt_name'].'.html';
+					}
+					else
+					{
+						$url = $this->dle_api->dle_config['http_home_url'].$post['id'].'-'.$post['alt_name'].'.html';
+					}
+				}
+				else
+				{
+					$url = $this->dle_api->dle_config['http_home_url'].date("Y/m/d/", strtotime($post['date'])).$post['alt_name'].'.html';
+				}
+			}
+			else
+			{
+				$url = $this->dle_api->dle_config['http_home_url'].'index.php?newsid='.$post['id'];
+			}
+
+			return $url;
+		}
 
 		/*
 		 * Метод подхватывает tpl-шаблон, заменяет в нём теги и возвращает отформатированную строку
@@ -147,6 +197,9 @@ if(!class_exists('BlockPro')) {
 		public function showOutput($output)
 		{
 			echo $output;
+			// echo "<hr>";
+			// echo "<pre class='orange'>"; print_r($output); echo "</pre>";
+			// echo "<hr>";
 		}
 
 	}//конец класса BlockPro
@@ -159,6 +212,7 @@ if(!class_exists('BlockPro')) {
 		'prefix'		=> !empty($BpPrefix)?$BpPrefix:'news_',
 		'nocache'		=> !empty($nocache)?$nocache:false,
 		'cache_live'	=> !empty($cache_live)?$cache_live:false,
+		'news_num'		=> !empty($news_num)?$news_num:'10',
 		// 'date'      => !empty($date)?$date:'old',
 		// 'ring'      => !empty($ring)?$ring:'yes',
 		// 'scan'      => !empty($scan)?$scan:'all_cat',
@@ -168,7 +222,7 @@ if(!class_exists('BlockPro')) {
 	
 	// Создаем экземпляр класса для перелинковки и запускаем его главный метод
 	$BlockPro = new BlockPro($BlockProConfig);
-	$BlockPro->run();
+	$BlockPro->runBlockPro();
 
 
 
