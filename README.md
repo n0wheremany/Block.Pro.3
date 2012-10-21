@@ -14,8 +14,13 @@ Block.Pro.3
 * prefix - Дефолтный префикс кеша
 * nocache - Не использовать кеш
 * cache_live - Время жизни кеша
-* news_num - Количество новостей в блоке
+* start_from - C какой новости начать вывод
+* limit - Количество новостей в блоке	
+* day - Временной период для отбора новостей		
+* sort - Сортировка (top, date, comms, rating, views)
+* order - Направление сортировки
 * image - Откуда брать картинку (short_story, full_story или xfield)
 * img_size - Размер уменьшенной копии картинки
 * resize_type - Опция уменьшения копии картинки (exact, portrait, landscape, auto, crop)
 * noimage - Картинка-заглушка
+* showstat - Показывать время стату по блоку
