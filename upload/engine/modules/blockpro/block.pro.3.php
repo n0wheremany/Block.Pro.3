@@ -18,16 +18,16 @@ email: mail@mithrandir.ru
 =============================================================================
 */
 
-//как всегда главная строка)))
+// Как всегда главная строка)))
 if( ! defined( 'DATALIFEENGINE' ) ) {
-	//Самый правильный посыл хакеру)))
+	// Самый правильный посыл хакеру)))
 	die( '<iframe width="853" height="480" style="margin: 50px;" src="http://www.youtube.com/embed/mTQLW3FNy-g" frameborder="0" allowfullscreen></iframe>' );
 }
-$start = microtime(true);
+if($showstat) $start = microtime(true);
 if(!class_exists('BlockPro')) {
 	class BlockPro {
 
-		//конструктор конфига модуля
+		// Конструктор конфига модуля
 		public function __construct($BlockProConfig)
 		{
 			// Подключаем DLE_API
@@ -47,16 +47,12 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function runBlockPro()
 		{
-			//Показываем статистику генерации блока если нужно
-			if($this->config['showstat']) {
-				$start = microtime(true);
-			}
-			//Определяем сегодняшнюю дату
+			// Определяем сегодняшнюю дату
 			$tooday = date("Y-m-d H:i:s");
 
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
-			//Если установлено время жизи кеша - убираем префикс news_ чтобы кеш не чистился автоматом
+			// Если установлено время жизи кеша - убираем префикс news_ чтобы кеш не чистился автоматом
 			if ($this->config['cache_live']) {
 				$this->config['prefix'] = ''; 
 			}
@@ -82,68 +78,69 @@ if(!class_exists('BlockPro')) {
 
 
 			// Условие для отображения только постов, прошедших модерацию
-            $wheres[] = 'approve = 1';
+			$wheres[] = 'approve = 1';
 
-            // Разбираемся с временными рамками отбора новостей
-            if ($this->config['day'] && $this->config['day'] != 0) {
-            	$interval = $this->config['day'];
-            } elseif ($this->config['last']) {
-            	# code...
-            }
-            $dateStart .= ' date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
+			// Разбираемся с временными рамками отбора новостей
+			if ($this->config['day'] && $this->config['day'] != 0) {
+				$interval = $this->config['day'];
+			} elseif ($this->config['last']) {
+				# code...
+			}
+			$dateStart .= ' date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
 
-            // Условие для отображения только тех постов, дата публикации которых уже наступила
-            $wheres[] = 'date < "'.$tooday.'"';
-            
-            // Условие для фильтрации текущего id
-            // $wheres[] = 'id != '.$this->config['postId'];
-            
-            // Складываем условия
-            $where = implode(' AND ', $wheres);
-            
-            // Направление сортировки по убыванию или возрастанию
-            $ordering = $this->config['order'] == 'new'?'DESC':'ASC';
+			// Условие для отображения только тех постов, дата публикации которых уже наступила
+			$wheres[] = 'date < "'.$tooday.'"';
+			
+			// Условие для фильтрации текущего id
+			// $wheres[] = 'id != '.$this->config['postId'];
+			
+			// Складываем условия
+			$where = implode(' AND ', $wheres);
+			
+			// Направление сортировки по убыванию или возрастанию
+			$ordering = $this->config['order'] == 'new'?'DESC':'ASC';
 
-            // Сортировка новостей 
-            switch ($this->config['sort']) {
-            	case 'date':					// Дата
-            		$sort = 'date '; 			
-            		break;
+			// Сортировка новостей 
+			switch ($this->config['sort']) 
+			{
+				case 'date':					// Дата
+					$sort = 'date '; 			
+					break;
 
-            	case 'rating':					// Рейтинг
-            		$sort = 'rating ';			
-            		break;
+				case 'rating':					// Рейтинг
+					$sort = 'rating ';			
+					break;
 
-            	case 'comms':					// Комментарии
-            		$sort = 'comm_num ';
-            		break;
+				case 'comms':					// Комментарии
+					$sort = 'comm_num ';
+					break;
 
-            	case 'views':					// Просмотры
-            		$sort = 'news_read ';
-            		break;
+				case 'views':					// Просмотры
+					$sort = 'news_read ';
+					break;
 
-            	case 'random':					// Случайные
-            		$sort = 'RAND() ';
-            		break;
-            	
-            	default:						// Топ как в DLE (сортировка по умолчанию)
-            		$sort = 'rating '.$ordering.', comm_num '.$ordering.', news_read ';
-            		break;
-            }
-            
-            // Формирование запроса в зависимости от версии движка
+				case 'random':					// Случайные
+					$sort = 'RAND() ';
+					break;
+				
+				default:						// Топ как в DLE (сортировка по умолчанию)
+					$sort = 'rating '.$ordering.', comm_num '.$ordering.', news_read ';
+					break;
+			}
+			
+			// Формирование запроса в зависимости от версии движка
 
-            if ($newVersion) {
-            	// 9.6 и выше
-            	$selectRows = 'p.id, p.autor, p.date, p.short_story, p.xfields, p.title, p.category, p.alt_name, p.allow_comm, p.comm_num, e.news_read, e.allow_rate, e.rating, e.vote_num, e.votes';
-            } else {
-            	// старые версии
-            	$selectRows = '';
-            }
-            
+			if ($newVersion) {
+				// 9.6 и выше
+				$selectRows = 'p.id, p.autor, p.date, p.short_story, p.xfields, p.title, p.category, p.alt_name, p.allow_comm, p.comm_num, e.news_read, e.allow_rate, e.rating, e.vote_num, e.votes';
+			} else {
+				// старые версии
+				$selectRows = '*'; //пока старые версии курят в сторонке
+			}
+			
 
 
-            // $news = $this->load_table (PREFIX."_post", $selectRows, $where.' AND '.$dateWhere, true, 0, $this->config['links'], 'id', $ordering);
+			// $news = $this->load_table (PREFIX."_post", $selectRows, $where.' AND '.$dateWhere, true, 0, $this->config['links'], 'id', $ordering);
 
 			/**
 			 * Service function - take params from table
@@ -164,37 +161,44 @@ if(!class_exists('BlockPro')) {
 
 			if(empty($news)) $news = array();
 
-			//Пробегаем по массиву с новостями и формируем список
+			// Пробегаем по массиву с новостями и формируем список
 			$output = '';
-			foreach ($news as $key => $newsItem) {
-				// $newsItem
+			foreach ($news as $key => $newsItem) 
+			{
 
-				$image = '';
+				// Выводим картинку (возможно можно как то оптимизировать этот код)
 				switch($this->config['image'])
-                {
-                    // Изображение из дополнительного поля
-                    case 'xfield':
+				{
+					// Изображение из дополнительного поля
+					case 'xfield':
 
-                        $xfields = xfieldsdataload($newsItem['xfields']);
-                        if(!empty($xfields) && !empty($xfields[$this->config['image']]))
-                        {
-                            $image = getImage($xfields[$this->config['image']]);
-                        }
-                        break;
-                    
-                    // Первое изображение из полного описания
-                    case 'full_story':
-                        $image = $this->getImage($newsItem['full_story']);
-                        break;
-                    
-                    // По умолчанию - краткая новость
-                    default:
-                    	$image = $this->getImage($newsItem['short_story']);
-                        break;
-                }
-                if ($image == '') {
-                	$image = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage'];
-                }
+						$xfields = xfieldsdataload($newsItem['xfields']);
+						if(!empty($xfields) && !empty($xfields[$this->config['image']]))
+						{
+							$image = getImage($xfields[$this->config['image']]);
+							$imageFull = ($this->config['image_full']) ? getImage($xfields[$this->config['image']],1) : '';
+						}
+						break;
+					
+					// Первое изображение из полного описания
+					case 'full_story':
+						$image = $this->getImage($newsItem['full_story']);
+						$imageFull = ($this->config['image_full']) ? $this->getImage($newsItem['full_story'],1) : '';
+						break;
+					
+					// По умолчанию - краткая новость
+					default:
+						$image = $this->getImage($newsItem['short_story']);
+						$imageFull = ($this->config['image_full']) ? $this->getImage($newsItem['short_story'],1) : '';
+						break;
+				}
+				// Картинка-заглушка
+				if ($image == '') {
+					$image = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage']; 
+				}
+				if ($imageFull == '') {
+					$imageFull = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
+				}
 
 
 				/**
@@ -206,6 +210,9 @@ if(!class_exists('BlockPro')) {
 						'{title}'          	=> $newsItem["title"],
 						'{full-link}'		=> $this->getPostUrl($newsItem),
 						'{image}'			=> $image,
+						'{image_full}'		=> $imageFull,
+						'{short-story}' 	=> $this->textLimit($newsItem['short_story'], $this->config['text_limit']),
+                    	'{full-story}'  	=> $this->textLimit($newsItem['full-story'], $this->config['text_limit']),
 						// '{description}'   => $description,
 					),
 					array(
@@ -221,11 +228,6 @@ if(!class_exists('BlockPro')) {
 				create_cache($this->config['prefix'].'bp_'.md5(implode('_', $this->config)), $output);
 			}
 			
-			//Показываем статистику генерации блока
-			if($this->config['showstat']) {
-				$output .= "<p style='color:red;'>Время выполнения: <b>". round((microtime(true) - $start), 6). "</b> сек</p>";
-			}
-
 			// Выводим содержимое модуля
 			$this->showOutput($output);
 
@@ -268,6 +270,36 @@ if(!class_exists('BlockPro')) {
 
 		}
 
+		/*
+		 * @param $data - контент
+		 * @param $length - максимальный размер возвращаемого контента
+		 * 
+		 * @return $data - обрезанный результат 
+		 */
+		public function textLimit($data, $count)
+		{
+			if ($this->config['text_limit'] != '0') 
+			{
+				$data = strip_tags($data, "<br>");
+				$data = trim(str_replace( array("<br>",'<br />'), " ", $data));
+
+				if($count && dle_strlen($data, $config['charset'] ) > $count)
+				{
+					$data = dle_substr( $data, 0, $count, $config['charset'] ). "&hellip;";					
+					if( !$wordcut && ($word_pos = dle_strrpos( $data, ' ', $config['charset'] )) ) 
+						$data = dle_substr( $data, 0, $word_pos, $config['charset'] ). "&hellip;";
+
+					$data = dle_substr($data, 0, $count, $config['charset']);
+					if(($temp_dmax = dle_strrpos($data, ' ', $config['charset'])))
+					{
+						$data = dle_substr($data, 0, $temp_dmax, $config['charset']);
+					}
+				}
+			}
+			
+			return $data;
+		}
+
 
 		/**
 		 * @param $post - массив с информацией о статье
@@ -290,7 +322,8 @@ if(!class_exists('BlockPro')) {
 				$url = $m[1][0]; 										//адрес первой картинки в новости
 				$imgOriginal = str_ireplace('/thumbs', '', $url); 		//Выдёргиваем оригинал, на случай если уменьшить надо до размеров больше, чем thumb в новости
 
-				if ($this->config['img_size']) { 						//Если Есть параметр img_size - включаем обрезку картинок
+				if ($this->config['img_size']) 
+				{ 						//Если Есть параметр img_size - включаем обрезку картинок
 
 
 					//--------------------------------------------
@@ -323,11 +356,15 @@ if(!class_exists('BlockPro')) {
 					
 					$data = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;					
 				
-				} else { 												//Отдаём нормальную картинку (или уменьшенную движком)
+				} else {
 					$data = $url;
 				}
 
-				 // echo "<pre class='orange'>"; print_r("/templates/".$this->dle_config['skin']."/images/".$this->config['noimage']); echo "</pre>"; 
+				//Отдаём нормальную картинку (или уменьшенную движком)
+				if ($img_original)
+				{ 												
+					$data = $imgOriginal;
+				}
 
 				return $data;
 			}
@@ -421,25 +458,32 @@ if(!class_exists('BlockPro')) {
 
 	// Цепляем конфиг модуля
 	$BlockProConfig = array(
-		'template'		=> !empty($template)?$template:'blockpro/blockpro', 	// Название шаблона (без расширения)
-		'prefix'		=> !empty($BpPrefix)?$BpPrefix:'news_', 				// Дефолтный префикс кеша
-		'nocache'		=> !empty($nocache)?$nocache:false,						// Не использовать кеш
-		'cache_live'	=> !empty($cache_live)?$cache_live:false,				// Время жизни кеша
+		'template'		=> !empty($template)?$template:'blockpro/blockpro', 		// Название шаблона (без расширения)
+		'prefix'		=> !empty($BpPrefix)?$BpPrefix:'news_', 					// Дефолтный префикс кеша
+		'nocache'		=> !empty($nocache)?$nocache:false,							// Не использовать кеш
+		'cache_live'	=> !empty($cache_live)?$cache_live:false,					// Время жизни кеша
 
-		'start_from'	=> !empty($start_from)?$start_from:'0',					// C какой новости начать вывод
-		'limit'			=> !empty($limit)?$limit:'10',							// Количество новостей в блоке	
+		'start_from'	=> !empty($start_from)?$start_from:'0',						// C какой новости начать вывод
+		'limit'			=> !empty($limit)?$limit:'10',								// Количество новостей в блоке	
 
-		'day'			=> !empty($day)?$day:'30',								// Временной период для отбора новостей		
-		'sort'			=> !empty($sort)?$sort:'top',							// Сортировка (top, date, comms, rating, views)
-		'order'			=> !empty($order)?$order:'new',							// Направление сортировки
+		'day'			=> !empty($day)?$day:'30',									// Временной период для отбора новостей		
+		'sort'			=> !empty($sort)?$sort:'top',								// Сортировка (top, date, comms, rating, views)
+		'order'			=> !empty($order)?$order:'new',								// Направление сортировки
 
 
-		'image'			=> !empty($image)?$image:'shotrt_story',				// Откуда брать картинку (short_story, full_story или xfield)
-		'img_size'		=> !empty($img_size)?$img_size:false,					// Размер уменьшенной копии картинки
-		'resize_type'	=> !empty($resize_type)?$resize_type:'auto',			// Опция уменьшения копии картинки (exact, portrait, landscape, auto, crop)
-		'noimage'		=> !empty($noimage)?$noimage:'noimage.png',				// Картинка-заглушка
+		'image'			=> !empty($image)?$image:'shotrt_story',					// Откуда брать картинку (short_story, full_story или xfield)
+		'noimage'		=> !empty($noimage)?$noimage:'noimage.png',					// Картинка-заглушка
+		'img_size'		=> !empty($img_size)?$img_size:false,						// Размер уменьшенной копии картинки
+		'resize_type'	=> !empty($resize_type)?$resize_type:'auto',				// Опция уменьшения копии картинки (exact, portrait, landscape, auto, crop)
 
-		'showstat'		=> !empty($showstat)?$showstat:false,					// Показывать время стату по блоку
+		'image_full'	=> !empty($image_full)?$image_full:false,					// Откуда брать картинку (short_story, full_story или xfield)
+		'noimage_full'	=> !empty($noimage_full)?$noimage_full:'noimage-full.png',	// Картинка-заглушка
+
+		'text_limit'	=> !empty($text_limit)?$text_limit:'150',					// Ограничение количества символов
+		'wordcut'		=> !empty($wordcut)?$wordcut:false,							// Жесткое ограичеие кол-ва символов, без учета слов
+		
+
+		'showstat'		=> !empty($showstat)?$showstat:false,						// Показывать время стату по блоку
 
 
 	);
@@ -447,5 +491,7 @@ if(!class_exists('BlockPro')) {
 	// Создаем экземпляр класса для перелинковки и запускаем его главный метод
 	$BlockPro = new BlockPro($BlockProConfig);
 	$BlockPro->runBlockPro();
-	echo "<p style='color:red;'>Время выполнения: <b>". round((microtime(true) - $start), 6). "</b> сек</p>";
+
+	//Показываем статистику генерации блока
+	if($showstat) echo "<p style='color:red;'>Время выполнения: <b>". round((microtime(true) - $start), 6). "</b> сек</p>";
 ?>
