@@ -30,12 +30,13 @@ if(!class_exists('BlockPro')) {
 		// Конструктор конфига модуля
 		public function __construct($BlockProConfig)
 		{
-			// Подключаем DLE_API
-			global $db, $config, $category;
-			// include ('engine/api/api.class.php');
-			// $this = $dle_api;
 
+			global $db, $config, $category;
+
+			// DB
 			$this->db = $db;
+
+			// Получаем конфиг DLE
 			$this->dle_config = $config;
 			
 			// Задаем конфигуратор класса
@@ -50,10 +51,12 @@ if(!class_exists('BlockPro')) {
 			// Определяем сегодняшнюю дату
 			$tooday = date("Y-m-d H:i:s");
 
+			// Проверка версии DLE
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
 			// Если установлено время жизи кеша - убираем префикс news_ чтобы кеш не чистился автоматом
-			if ($this->config['cache_live']) {
+			if ($this->config['cache_live']) 
+			{
 				$this->config['prefix'] = ''; 
 			}
 
@@ -74,22 +77,29 @@ if(!class_exists('BlockPro')) {
 			}
 			
 			// Если в кэше ничего не найдено, генерируем модуль заново
+
 			$wheres = array();
 
 
 			// Условие для отображения только постов, прошедших модерацию
-			$wheres[] = 'approve = 1';
-
-			// Разбираемся с временными рамками отбора новостей
-			if ($this->config['day'] && $this->config['day'] != 0) {
-				$interval = $this->config['day'];
-			} elseif ($this->config['last']) {
-				# code...
-			}
-			$dateStart .= ' date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
+			$wheres[] = 'approve';
 
 			// Условие для отображения только тех постов, дата публикации которых уже наступила
 			$wheres[] = 'date < "'.$tooday.'"';
+
+
+			// Разбираемся с временными рамками отбора новостей
+			if ($this->config['day']) 
+			{
+				$interval = $this->config['day'];
+				$dateStart = 'AND date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
+			}
+
+			if (!$this->config['day']) 
+			{
+				$dateStart = '';
+			}
+			
 			
 			// Условие для фильтрации текущего id
 			// $wheres[] = 'id != '.$this->config['postId'];
@@ -138,10 +148,6 @@ if(!class_exists('BlockPro')) {
 				$selectRows = '*'; //пока старые версии курят в сторонке
 			}
 			
-
-
-			// $news = $this->load_table (PREFIX."_post", $selectRows, $where.' AND '.$dateWhere, true, 0, $this->config['links'], 'id', $ordering);
-
 			/**
 			 * Service function - take params from table
 			 * @param $table string - название таблицы
@@ -156,13 +162,17 @@ if(!class_exists('BlockPro')) {
 			 */
 			//$news = $this->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
 
-			$news = $this->load_table (PREFIX . "_post p LEFT JOIN " . PREFIX . "_post_extras e ON (p.id=e.news_id)", $selectRows, $where.' AND '.$dateStart, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
+			$news = $this->load_table (PREFIX . "_post p LEFT JOIN " . PREFIX . "_post_extras e ON (p.id=e.news_id)", $selectRows, $where . $dateStart, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
 
 
 			if(empty($news)) $news = array();
 
 			// Пробегаем по массиву с новостями и формируем список
 			$output = '';
+
+			if (empty($news)) {
+				$output .= '<span style="color: #f00">По заданным критериям материалов нет</span>';
+			}
 			foreach ($news as $key => $newsItem) 
 			{
 
@@ -270,7 +280,7 @@ if(!class_exists('BlockPro')) {
 
 		}
 
-		/*
+		/**
 		 * @param $data - контент
 		 * @param $length - максимальный размер возвращаемого контента
 		 * 
@@ -300,7 +310,6 @@ if(!class_exists('BlockPro')) {
 			return $data;
 		}
 
-
 		/**
 		 * @param $post - массив с информацией о статье
 		 * @return string URL картинки
@@ -318,49 +327,59 @@ if(!class_exists('BlockPro')) {
 			}
 
 			if(preg_match_all('/<img(?:\\s[^<>]*?)?\\bsrc\\s*=\\s*(?|"([^"]*)"|\'([^\']*)\'|([^<>\'"\\s]*))[^<>]*>/i', $post, $m)) {
-
-				$url = $m[1][0]; 										//адрес первой картинки в новости
-				$imgOriginal = str_ireplace('/thumbs', '', $url); 		//Выдёргиваем оригинал, на случай если уменьшить надо до размеров больше, чем thumb в новости
-
-				if ($this->config['img_size']) 
-				{ 						//Если Есть параметр img_size - включаем обрезку картинок
-
-
-					//--------------------------------------------
-					// >>>> Вот эту часть надо както доработать ...наверное
-
-					$urlShort = explode('/uploads/', $url); 			//разбиваем на две части, чтоб отсечь имя домена
-					if(count($urlShort) != 2) continue; 				// да ну нафиг, если в нескольких папках uploads					
-					$urlShort = ROOT_DIR . '/uploads/' . $urlShort[1]; 	//Берём второй кусок и подставляем root_dir, чтоб скормить классу по обработке картинок	
-					//if(!is_file($urlShort))  continue; 				//а файл ли это? (пока закомментил, класс ошибок не выдаёт, надо проверять на хостинге)
-
-					// <<<< Вот эту часть надо както доработать ...наверное
-					//--------------------------------------------
-
-
-					$fileName = $this->config['img_size']."_".strtolower(basename($urlShort)); 		//Определяем новое имя файла
-					
-					if(!file_exists($dir.$fileName)) { //Если картинки нет - создаём её
-						$img_size = explode('x', $this->config['img_size']); 						//Разделяем высоту и ширину
-
-						require_once ENGINE_DIR.'/modules/blockpro/resize_class.php'; 				//Подрубаем нормальный класс для картинок(?), а не то говно, которое в DLE
-						$resizeImg = new resize($urlShort);
-						$resizeImg -> resizeImage(						//создание уменьшенной копии
-							$img_size[0], 								//Ширина
-							$img_size[1], 								//Высота
-							$this->config['resize_type']				//Метод уменьшения (exact, portrait, landscape, auto, crop)
-							); 
-						$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro
-					
-					}					 									
-					
-					$data = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;					
 				
-				} else {
+				//адрес первой картинки в новости
+				$url = $m[1][0]; 	
+
+				//Выдёргиваем оригинал, на случай если уменьшить надо до размеров больше, чем thumb в новости									
+				$imgOriginal = str_ireplace('/thumbs', '', $url); 		
+				
+				// Если Есть параметр img_size - включаем обрезку картинок
+				if ($this->config['img_size']) 
+				{ 	
+					// Удаляем имя текущего домена из строки
+					$urlShort = str_ireplace('http://'.$_SERVER['HTTP_HOST'].'/', '', $url);	
+
+					// Если http нет - работаем с картинкой, если есть http или смайлик/спойлер - пропускаем, такая картинка нам не пойдёт
+					if (stripos($urlShort, 'http') === false && stripos($urlShort, 'dleimages') === false) 
+					{
+						$urlShort = ROOT_DIR .'/'. $urlShort;					
+						
+						//Определяем новое имя файла
+						$fileName = $this->config['img_size']."_".strtolower(basename($urlShort)); 		
+
+						//Если картинки нет - создаём её
+						if(!file_exists($dir.$fileName)) { 
+
+							//Разделяем высоту и ширину
+							$img_size = explode('x', $this->config['img_size']); 	
+
+							//Подрубаем нормальный класс для картинок(?), а не то говно, которое в DLE
+							require_once ENGINE_DIR.'/modules/blockpro/resize_class.php'; 				
+							$resizeImg = new resize($urlShort);
+							$resizeImg -> resizeImage(						//создание уменьшенной копии
+								$img_size[0], 								//Ширина
+								$img_size[1], 								//Высота
+								$this->config['resize_type']				//Метод уменьшения (exact, portrait, landscape, auto, crop)
+								); 
+							$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro
+						
+						}					 									
+						
+						$data = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;	
+					} 
+					// Если внешняя картинка - возвращаем её
+					// else {
+					// 	$data = $url;						
+					// }	
+					
+				} 
+				//Если ничего не подошло - возвращаем пустое место, для подстановки заглушки.
+				else {
 					$data = $url;
 				}
 
-				//Отдаём нормальную картинку (или уменьшенную движком)
+				//Отдаём нормальную картинку (или уменьшенную движком) если требуется
 				if ($img_original)
 				{ 												
 					$data = $imgOriginal;
@@ -371,7 +390,7 @@ if(!class_exists('BlockPro')) {
 			
 		}
 
-		/*
+		/**
 		 * @param $post - массив с информацией о статье
 		 * @return string URL для категории
 		 */
@@ -407,7 +426,7 @@ if(!class_exists('BlockPro')) {
 			return $url;
 		}
 
-		/*
+		/**
 		 * Метод подхватывает tpl-шаблон, заменяет в нём теги и возвращает отформатированную строку
 		 * @param $template - название шаблона, который нужно применить
 		 * @param $vars - ассоциативный массив с данными для замены переменных в шаблоне
@@ -466,7 +485,7 @@ if(!class_exists('BlockPro')) {
 		'start_from'	=> !empty($start_from)?$start_from:'0',						// C какой новости начать вывод
 		'limit'			=> !empty($limit)?$limit:'10',								// Количество новостей в блоке	
 
-		'day'			=> !empty($day)?$day:'30',									// Временной период для отбора новостей		
+		'day'			=> !empty($day)?$day:false,									// Временной период для отбора новостей		
 		'sort'			=> !empty($sort)?$sort:'top',								// Сортировка (top, date, comms, rating, views)
 		'order'			=> !empty($order)?$order:'new',								// Направление сортировки
 
