@@ -16,7 +16,7 @@ email: mail@mithrandir.ru
 -----------------------------------------------------------------------------
 Версия: 3.0a 
 =============================================================================
-*/
+*/ 
 
 // Как всегда главная строка)))
 if( ! defined( 'DATALIFEENGINE' ) ) {
@@ -55,16 +55,28 @@ if(!class_exists('BlockPro')) {
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
 			// Если установлено время жизи кеша - убираем префикс news_ чтобы кеш не чистился автоматом
+			// и задаём настройки времени жизни кеша в секундах (надо доработать, где то косяк)
 			if ($this->config['cache_live']) 
 			{
 				$this->config['prefix'] = ''; 
+
+				$filedate = ENGINE_DIR."/cache/".$this->config['prefix'].'bp_'.md5(implode('_', $this->config)).".tmp";
+
+				if(@file_exists($filedate)) $cache_time=time()-@filemtime ($filedate);
+				else $cache_time = $this->config['cache_live'];	
+				if ($cache_time>=$this->config['cache_live']) $clear_time_cache = true;
+				print_r($filedate);
 			}
+
+
+
+
 
 			// Пробуем подгрузить содержимое модуля из кэша
 			$output = false;
 
 			// Если nocache не установлен - добавляем префикс (по умолчанию news_) к файлу кеша. 
-			if( !$this->config['nocache'])
+			if( !$this->config['nocache'] || !$clear_time_cache)
 			{
 				$output = dle_cache($this->config['prefix'].'bp_'.md5(implode('_', $this->config)));
 			}
@@ -173,43 +185,42 @@ if(!class_exists('BlockPro')) {
 			if (empty($news)) {
 				$output .= '<span style="color: #f00">По заданным критериям материалов нет</span>';
 			}
-			foreach ($news as $key => $newsItem) 
+			foreach ($news as $newsItem) 
 			{
+				$xfields = xfieldsload();
 
-				// Выводим картинку (возможно можно как то оптимизировать этот код)
+				// Выводим картинку
 				switch($this->config['image'])
 				{
 					// Изображение из дополнительного поля
-					case 'xfield':
-
-						$xfields = xfieldsdataload($newsItem['xfields']);
-						if(!empty($xfields) && !empty($xfields[$this->config['image']]))
-						{
-							$image = getImage($xfields[$this->config['image']]);
-							$imageFull = ($this->config['image_full']) ? getImage($xfields[$this->config['image']],1) : '';
-						}
+					case 'short_story':
+						$imgArray = $this->getImage($newsItem['short_story']);
 						break;
 					
 					// Первое изображение из полного описания
 					case 'full_story':
-						$image = $this->getImage($newsItem['full_story']);
-						$imageFull = ($this->config['image_full']) ? $this->getImage($newsItem['full_story'],1) : '';
+						$imgArray = $this->getImage($newsItem['full_story']);
 						break;
 					
-					// По умолчанию - краткая новость
+					// По умолчанию - первое изображение из краткой новости
 					default:
-						$image = $this->getImage($newsItem['short_story']);
-						$imageFull = ($this->config['image_full']) ? $this->getImage($newsItem['short_story'],1) : '';
+						$xfieldsdata = xfieldsdataload($newsItem['xfields']);
+						if(!empty($xfieldsdata) && !empty($xfieldsdata[$this->config['image']]))
+						{
+							$imgArray = getImage($xfieldsdata[$this->config['image']]);
+						}
 						break;
 				}
-				// Картинка-заглушка
-				if ($image == '') {
-					$image = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage']; 
-				}
-				if ($imageFull == '') {
-					$imageFull = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
-				}
+				//echo "<pre class='orange'>"; print_r($newsItem['xfields']); echo "</pre>";
 
+				// Определяем переменные, выводящие картинку
+				$image = ($imgArray['imgResized']) ? $imgArray['imgResized'] : "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage'];
+				if (!$imgArray['imgResized']) {
+					$imageFull = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
+				} else {
+					$imageFull = $imgArray['imgOriginal'];
+				}
+				// $imageFull = ($imgArray['imgOriginal']) ? $imgArray['imgOriginal'] : "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
 
 				/**
 				 * Основной код формирующий новость
@@ -289,36 +300,35 @@ if(!class_exists('BlockPro')) {
 		public function textLimit($data, $count)
 		{
 			if ($this->config['text_limit'] != '0') 
-			{
+			{	
 				$data = strip_tags($data, "<br>");
 				$data = trim(str_replace( array("<br>",'<br />'), " ", $data));
 
-				if($count && dle_strlen($data, $config['charset'] ) > $count)
+				if($count && dle_strlen($data, $this->dle_config['charset'] ) > $count)
 				{
-					$data = dle_substr( $data, 0, $count, $config['charset'] ). "&hellip;";					
-					if( !$wordcut && ($word_pos = dle_strrpos( $data, ' ', $config['charset'] )) ) 
-						$data = dle_substr( $data, 0, $word_pos, $config['charset'] ). "&hellip;";
+					$data = dle_substr( $data, 0, $count, $this->dle_config['charset'] ). "&hellip;";					
+					if( !$this->config['wordcut'] && ($word_pos = dle_strrpos( $data, ' ', $this->dle_config['charset'] )) ) 
+						$data = dle_substr( $data, 0, $word_pos, $this->dle_config['charset'] ). "&hellip;";
 
-					$data = dle_substr($data, 0, $count, $config['charset']);
-					if(($temp_dmax = dle_strrpos($data, ' ', $config['charset'])))
-					{
-						$data = dle_substr($data, 0, $temp_dmax, $config['charset']);
-					}
 				}
 			}
-			
 			return $data;
 		}
 
 		/**
 		 * @param $post - массив с информацией о статье
-		 * @return string URL картинки
+		 * @return array - URL`s уменьшенной картинки и оригинальной
+		 * если картинка лежит на внешнем ресурсе и включен параметр remote_images - выводится url внешней картинки 
+		 * если картинка не обработалась - выводится пустота
 		 */
 
-		public function getImage($post, $img_original)
-		{
-			$dir = ROOT_DIR . '/uploads/blockpro/'; //задаём папку для картинок
-			if(!is_dir($dir)){						//Создаём и назначаем права, если нет таковых
+		public function getImage($post)
+		{	
+			// Задаём папку для картинок
+			$dir = ROOT_DIR . '/uploads/blockpro/'; 
+
+			// Создаём и назначаем права, если нет таковых
+			if(!is_dir($dir)){						
 				@mkdir($dir, 0755);
 				@chmod($dir, 0755);
 			} 
@@ -328,62 +338,67 @@ if(!class_exists('BlockPro')) {
 
 			if(preg_match_all('/<img(?:\\s[^<>]*?)?\\bsrc\\s*=\\s*(?|"([^"]*)"|\'([^\']*)\'|([^<>\'"\\s]*))[^<>]*>/i', $post, $m)) {
 				
-				//адрес первой картинки в новости
+				// Адрес первой картинки в новости
 				$url = $m[1][0]; 	
 
 				//Выдёргиваем оригинал, на случай если уменьшить надо до размеров больше, чем thumb в новости									
-				$imgOriginal = str_ireplace('/thumbs', '', $url); 		
-				
-				// Если Есть параметр img_size - включаем обрезку картинок
-				if ($this->config['img_size']) 
-				{ 	
-					// Удаляем имя текущего домена из строки
-					$urlShort = str_ireplace('http://'.$_SERVER['HTTP_HOST'].'/', '', $url);	
+				$imgOriginal = str_ireplace('/thumbs', '', $url); 	
 
-					// Если http нет - работаем с картинкой, если есть http или смайлик/спойлер - пропускаем, такая картинка нам не пойдёт
-					if (stripos($urlShort, 'http') === false && stripos($urlShort, 'dleimages') === false) 
+				// Удаляем текущий домен из строки
+				$urlShort = str_ireplace('http://'.$_SERVER['HTTP_HOST'], '', $imgOriginal);
+
+				// Если http нет - работаем с картинкой, если есть http или смайлик/спойлер - пропускаем, такая картинка нам не пойдёт, вставим заглушку
+				if (stripos($urlShort, 'http') === false && stripos($urlShort, 'dleimages') === false && stripos($urlShort, 'engine/data/emoticons') === false) 
+				{
+					// Если Есть параметр img_size - включаем обрезку картинок
+					if ($this->config['img_size']) 
 					{
-						$urlShort = ROOT_DIR .'/'. $urlShort;					
+						// Подставляем корневю дирректорию, чтоб ресайзер понял что ему дают.
+						$imgResized = ROOT_DIR . $urlShort;					
 						
-						//Определяем новое имя файла
-						$fileName = $this->config['img_size']."_".strtolower(basename($urlShort)); 		
+						// Определяем новое имя файла
+						$fileName = $this->config['img_size']."_".strtolower(basename($imgResized)); 		
 
-						//Если картинки нет - создаём её
-						if(!file_exists($dir.$fileName)) { 
-
-							//Разделяем высоту и ширину
+						// Если картинки нет - создаём её
+						if(!file_exists($dir.$fileName)) 
+						{ 
+							// Разделяем высоту и ширину
 							$img_size = explode('x', $this->config['img_size']); 	
 
-							//Подрубаем нормальный класс для картинок(?), а не то говно, которое в DLE
+							// Подрубаем нормальный класс для картинок(надо его в деле проверить ещё :-D)
 							require_once ENGINE_DIR.'/modules/blockpro/resize_class.php'; 				
-							$resizeImg = new resize($urlShort);
+							$resizeImg = new resize($imgResized);
 							$resizeImg -> resizeImage(						//создание уменьшенной копии
 								$img_size[0], 								//Ширина
 								$img_size[1], 								//Высота
 								$this->config['resize_type']				//Метод уменьшения (exact, portrait, landscape, auto, crop)
 								); 
 							$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro
-						
 						}					 									
 						
-						$data = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;	
-					} 
-					// Если внешняя картинка - возвращаем её
-					// else {
-					// 	$data = $url;						
-					// }	
-					
+						$imgResized = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;	
+					}
+					// Если параметра img_size нет - отдаём оригинальную картинку
+					else 
+					{
+						$imgResized = $urlShort;
+					}
 				} 
-				//Если ничего не подошло - возвращаем пустое место, для подстановки заглушки.
-				else {
-					$data = $url;
+
+				// Если внешняя картинка - возвращаем её, при наличии перемнной remote_images в строке подключения
+				elseif (stripos($urlShort, 'http') !== false && $this->config['remote_images']) {
+					$imgResized = $urlShort;						
 				}
 
-				//Отдаём нормальную картинку (или уменьшенную движком) если требуется
-				if ($img_original)
-				{ 												
-					$data = $imgOriginal;
+				// Если remote_images не указан - выдаём пустоту
+				elseif (stripos($urlShort, 'http') !== false)
+				{
+					$imgResized = '';
+					$imgOriginal = '';
 				}
+
+				// Нам нужен на выходе массив из двух картинок
+				$data = array('imgResized' => $imgResized, 'imgOriginal' => $imgOriginal);				
 
 				return $data;
 			}
@@ -490,16 +505,16 @@ if(!class_exists('BlockPro')) {
 		'order'			=> !empty($order)?$order:'new',								// Направление сортировки
 
 
-		'image'			=> !empty($image)?$image:'shotrt_story',					// Откуда брать картинку (short_story, full_story или xfield)
-		'noimage'		=> !empty($noimage)?$noimage:'noimage.png',					// Картинка-заглушка
+		'image'			=> !empty($image)?$image:'short_story',						// Откуда брать картинку (short_story, full_story или xfield)
+		'remote_images'	=> !empty($remote_images)?$remote_images:false,				// Показывать картинки с других сайтов (уменьшаться они не будут!)
+		'noimage'		=> !empty($noimage)?$noimage:'noimage.png',					// Картинка-заглушка маленькая
+		'noimage_full'	=> !empty($noimage_full)?$noimage_full:'noimage-full.png',	// Картинка-заглушка большая
 		'img_size'		=> !empty($img_size)?$img_size:false,						// Размер уменьшенной копии картинки
 		'resize_type'	=> !empty($resize_type)?$resize_type:'auto',				// Опция уменьшения копии картинки (exact, portrait, landscape, auto, crop)
+		
 
-		'image_full'	=> !empty($image_full)?$image_full:false,					// Откуда брать картинку (short_story, full_story или xfield)
-		'noimage_full'	=> !empty($noimage_full)?$noimage_full:'noimage-full.png',	// Картинка-заглушка
-
-		'text_limit'	=> !empty($text_limit)?$text_limit:'150',					// Ограничение количества символов
-		'wordcut'		=> !empty($wordcut)?$wordcut:false,							// Жесткое ограичеие кол-ва символов, без учета слов
+		'text_limit'	=> !empty($text_limit)?$text_limit:false,					// Ограничение количества символов
+		'wordcut'		=> !empty($wordcut)?$wordcut:false,							// Жесткое ограничение кол-ва символов, без учета длины слов
 		
 
 		'showstat'		=> !empty($showstat)?$showstat:false,						// Показывать время стату по блоку
