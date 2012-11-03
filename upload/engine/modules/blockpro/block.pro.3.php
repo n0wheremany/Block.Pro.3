@@ -31,10 +31,13 @@ if(!class_exists('BlockPro')) {
 		public function __construct($BlockProConfig)
 		{
 
-			global $db, $config, $category;
+			global $db, $config, $category, $category_id, $cat_info;
 
-			// DB
+			// ХЗ почему, но глобальные переменные работают только так
 			$this->db = $db;
+			$this->category_id = $category_id;
+			$this->category = $category;
+			$this->cat_info = $cat_info;
 
 			// Получаем конфиг DLE
 			$this->dle_config = $config;
@@ -48,37 +51,37 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function runBlockPro()
 		{
+			
 			// Определяем сегодняшнюю дату
-			$tooday = date("Y-m-d H:i:s");
+			$tooday = date( "Y-m-d H:i:s", (time() + $this->dle_config['date_adjust'] * 60) );
 
 			// Проверка версии DLE
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
+			
+			// Пробуем подгрузить содержимое модуля из кэша
+			$output = false;
+
 			// Если установлено время жизи кеша - убираем префикс news_ чтобы кеш не чистился автоматом
 			// и задаём настройки времени жизни кеша в секундах (надо доработать, где то косяк)
 			if ($this->config['cache_live']) 
 			{
 				$this->config['prefix'] = ''; 
 
-				$filedate = ENGINE_DIR."/cache/".$this->config['prefix'].'bp_'.md5(implode('_', $this->config)).".tmp";
+				$filedate = ENGINE_DIR.'/cache/'.$this->config['prefix'].'bp_'.md5(implode('_', $this->config)).'.tmp';
 
 				if(@file_exists($filedate)) $cache_time=time()-@filemtime ($filedate);
-				else $cache_time = $this->config['cache_live'];	
-				if ($cache_time>=$this->config['cache_live']) $clear_time_cache = true;
-				print_r($filedate);
+				else $cache_time = $this->config['cache_live']*60;	
+				if ($cache_time>=$this->config['cache_live']*60) $clear_time_cache = 1;
 			}
 
-
-
-
-
-			// Пробуем подгрузить содержимое модуля из кэша
-			$output = false;
-
 			// Если nocache не установлен - добавляем префикс (по умолчанию news_) к файлу кеша. 
-			if( !$this->config['nocache'] || !$clear_time_cache)
+			if( !$this->config['nocache'])
 			{
 				$output = dle_cache($this->config['prefix'].'bp_'.md5(implode('_', $this->config)));
+			}
+			if ($clear_time_cache) {
+				$output = false;
 			}
 			
 			// Если значение кэша для данной конфигурации получено, выводим содержимое кэша
@@ -100,7 +103,7 @@ if(!class_exists('BlockPro')) {
 			$wheres[] = 'date < "'.$tooday.'"';
 
 
-			// Разбираемся с временными рамками отбора новостей
+			// Разбираемся с временными рамками отбора новостей, если кол-во дней указано - ограничиваем выборку, если нет - выводим без ограничения даты
 			if ($this->config['day']) 
 			{
 				$interval = $this->config['day'];
@@ -111,7 +114,17 @@ if(!class_exists('BlockPro')) {
 			{
 				$dateStart = '';
 			}
+
+			// Фильтрация категорий
 			
+			if ($this->config['show_cat'] || $this->config['ignore_cat']) {
+				$ignore = ($this->config['ignore_cat']) ? 'NOT ' : '';
+				$catArr = ($this->config['ignore_cat']) ? $this->config['ignore_cat'] : $this->config['show_cat'];	
+				
+				$wheres[] = $ignore.'category regexp "[[:<:]]('.str_replace(',', '|', $catArr).')[[:>:]]"';				
+			}
+			
+
 			
 			// Условие для фильтрации текущего id
 			// $wheres[] = 'id != '.$this->config['postId'];
@@ -154,11 +167,12 @@ if(!class_exists('BlockPro')) {
 
 			if ($newVersion) {
 				// 9.6 и выше
-				$selectRows = 'p.id, p.autor, p.date, p.short_story, p.xfields, p.title, p.category, p.alt_name, p.allow_comm, p.comm_num, e.news_read, e.allow_rate, e.rating, e.vote_num, e.votes';
+				$selectRows = 'p.id, p.autor, p.date, p.short_story, p.full_story, p.xfields, p.title, p.category, p.alt_name, p.allow_comm, p.comm_num, e.news_read, e.allow_rate, e.rating, e.vote_num, e.votes';
 			} else {
 				// старые версии
 				$selectRows = '*'; //пока старые версии курят в сторонке
 			}
+
 			
 			/**
 			 * Service function - take params from table
@@ -174,71 +188,122 @@ if(!class_exists('BlockPro')) {
 			 */
 			//$news = $this->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
 
-			$news = $this->load_table (PREFIX . "_post p LEFT JOIN " . PREFIX . "_post_extras e ON (p.id=e.news_id)", $selectRows, $where . $dateStart, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
+			$news = $this->load_table (PREFIX . '_post p LEFT JOIN ' . PREFIX . '_post_extras e ON (p.id=e.news_id)', $selectRows, $where . $dateStart, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
 
 
 			if(empty($news)) $news = array();
 
-			// Пробегаем по массиву с новостями и формируем список
+			// Задаём переменную, в котоую будем всё складывать
 			$output = '';
 
+			// Если в выборке нет новостей - сообщаем об этом
 			if (empty($news)) {
-				$output .= '<span style="color: #f00">По заданным критериям материалов нет</span>';
+				$output .= '<span style="color: #f00">По заданным критериям материалов нет, попробуйте изменить параметры строки подключения</span>';
+				return;
 			}
+			// Пробегаем по массиву с новостями и формируем список
 			foreach ($news as $newsItem) 
 			{
 				$xfields = xfieldsload();
+
+				// Формируем ссылки на категории и иконки категорий
+				$my_cat = array();
+				$my_cat_icon = array();
+				$my_cat_link = array();
+				$cat_list = explode(',', $newsItem['category']);
+				foreach($cat_list as $element) {
+					if(isset($this->cat_info[$element])) {
+						$my_cat[] = $this->cat_info[$element]['name'];
+						if ($this->cat_info[$element]['icon'])
+							$my_cat_icon[] = '<img class="bp-cat-icon" src="'.$this->cat_info[$element]['icon'].'" alt="'.$this->cat_info[$element]['name'].'" />';
+						else
+							$my_cat_icon[] = '<img class="bp-cat-icon" src="{THEME}/blockpro/'.$this->config['noicon'].'" alt="'.$this->cat_info[$element]['name'].'" />';
+						if( $this->dle_config['allow_alt_url'] == 'yes' ) 
+							$my_cat_link[] = '<a href="'.$this->dle_config['http_home_url'].get_url($element).'/">'.$this->cat_info[$element]['name'].'</a>';
+						else 
+							$my_cat_link[] = '<a href="'.$PHP_SELF.'?do=cat&category='.$this->cat_info[$element]['alt_name'].'">'.$this->cat_info[$element]['name'].'</a>';
+					}
+				}
+				$categoryUrl = ($newsItem['category']) ? $this->dle_config['http_home_url'] . get_url(intval($newsItem['category'])) . '/' : '/' ;
+
+				// Ссылка на профиль  юзера
+				if( $this->dle_config['allow_alt_url'] == 'yes' ) {
+					$go_page = $config['http_home_url'].'user/'.urlencode($newsItem['autor']).'/';
+				} else {
+					$go_page = $PHP_SELF.'?subaction=userinfo&amp;user='.urlencode($newsItem['autor']);
+				}
 
 				// Выводим картинку
 				switch($this->config['image'])
 				{
 					// Изображение из дополнительного поля
 					case 'short_story':
-						$imgArray = $this->getImage($newsItem['short_story']);
+						$imgArray = $this->getImage($newsItem['short_story'], $newsItem['date']);
 						break;
 					
 					// Первое изображение из полного описания
 					case 'full_story':
-						$imgArray = $this->getImage($newsItem['full_story']);
+						$imgArray = $this->getImage($newsItem['full_story'], $newsItem['date']);
 						break;
 					
 					// По умолчанию - первое изображение из краткой новости
 					default:
-						$xfieldsdata = xfieldsdataload($newsItem['xfields']);
+						$xfieldsdata = xfieldsdataload($newsItem['xfields'], $newsItem['date']);
 						if(!empty($xfieldsdata) && !empty($xfieldsdata[$this->config['image']]))
 						{
 							$imgArray = getImage($xfieldsdata[$this->config['image']]);
 						}
 						break;
 				}
-				//echo "<pre class='orange'>"; print_r($newsItem['xfields']); echo "</pre>";
 
 				// Определяем переменные, выводящие картинку
-				$image = ($imgArray['imgResized']) ? $imgArray['imgResized'] : "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage'];
+				$image = ($imgArray['imgResized']) ? $imgArray['imgResized'] : '{THEME}/blockpro/'.$this->config['noimage'];
 				if (!$imgArray['imgResized']) {
-					$imageFull = "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
+					$imageFull = '{THEME}/blockpro/'.$this->config['noimage_full'];
 				} else {
 					$imageFull = $imgArray['imgOriginal'];
 				}
-				// $imageFull = ($imgArray['imgOriginal']) ? $imgArray['imgOriginal'] : "/templates/".$this->dle_config['skin']."/images/".$this->config['noimage_full'];
+
 
 				/**
-				 * Основной код формирующий новость
+				 * Код, формирующий вывод шаблона новости
 				 */
 
 				$output .= $this->applyTemplate($this->config['template'],
 					array(
-						'{title}'          	=> $newsItem["title"],
+						'{title}'          	=> $newsItem['title'],
 						'{full-link}'		=> $this->getPostUrl($newsItem),
 						'{image}'			=> $image,
 						'{image_full}'		=> $imageFull,
 						'{short-story}' 	=> $this->textLimit($newsItem['short_story'], $this->config['text_limit']),
-                    	'{full-story}'  	=> $this->textLimit($newsItem['full-story'], $this->config['text_limit']),
-						// '{description}'   => $description,
+                    	'{full-story}'  	=> $this->textLimit($newsItem['full_story'], $this->config['text_limit']),
+                    	'{link-category}'	=> implode(', ', $my_cat_link),
+						'{category}'		=> implode(', ', $my_cat),
+						'{category-icon}'	=> implode('', $my_cat_icon),
+						'{category-url}'	=> $categoryUrl,
+						'{news-id}'			=> $newsItem['id'],
+						'{author}'			=> "<a onclick=\"ShowProfile('" . urlencode( $newsItem['autor'] ) . "', '" . $go_page . "', '" . $user_group[$member_id['user_group']]['admin_editusers'] . "'); return false;\" href=\"" . $go_page . "\">" . $newsItem['autor'] . "</a>",
+						'{login}'			=> $newsItem['autor'],
+						'[profile]'			=> '<a href="'.$go_page.'">',
+						'[/profile]'		=> '</a>',
+						'[com-link]'		=> $newsItem['allow_comm']?'<a href="'.$this->getPostUrl($newsItem).'#comment">':'',
+						'[/com-link]'		=> $newsItem['allow_comm']?'</a>':'',
+						'{comments-num}'	=> $newsItem['allow_comm']?$newsItem['comm_num']:'',
+						'{views}'			=> $newsItem['news_read'],
+						// '{date}'			=> langdate($this->dle_config['timestamp_active'], $newsItem['date']), //так и не понимаю почему показывает 1970
+						'{date}'			=> $newsItem['date'], // @TODO подправить дату
+						'{rating}'			=> $newsItem['allow_rate']?ShowRating( $newsItem['id'], $newsItem['rating'], $newsItem['vote_num'], 0 ):'', 
+						'{vote-num}'		=> $newsItem['allow_rate']?$newsItem['vote_num']:'', 
+
 					),
 					array(
 						// "'\[show_name\\](.*?)\[/show_name\]'si" => !empty($name)?"\\1":'',
 						// "'\[show_description\\](.*?)\[/show_description\]'si" => !empty($description)?"\\1":'',
+						"'\[comments\\](.*?)\[/comments\]'si"             => $newsItem['comm_num']!=='0'?'\\1':'',
+						"'\[not-comments\\](.*?)\[/not-comments\]'si"     => $newsItem['comm_num']=='0'?'\\1':'',
+						"'\[rating\\](.*?)\[/rating\]'si"                 => $newsItem['allow_rate']?'\\1':'',
+						"'\[allow-comm\\](.*?)\[/allow-comm\]'si"         => $newsItem['allow_comm']?'\\1':'',
+						"'\[not-allow-comm\\](.*?)\[/not-allow-comm\]'si" => !$newsItem['allow_comm']?'\\1':'',
 					)
 				);
 			}
@@ -267,13 +332,13 @@ if(!class_exists('BlockPro')) {
 		 * @param $sort_order - направление сортировки
 		 * @return array с данными или false если mysql вернуль 0 рядов
 		 */
-		public function load_table ($table, $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 0, $sort = '', $sort_order = 'desc')
+		public function load_table ($table, $fields = '*', $where = '1', $multirow = false, $start = 0, $limit = 0, $sort = '', $sort_order = 'desc')
 		{
 			if (!$table) return false;
 
 			if ($sort!='') $where.= ' order by '.$sort.' '.$sort_order;
 			if ($limit>0) $where.= ' limit '.$start.','.$limit;
-			$q = $this->db->query("SELECT ".$fields." from ".$table." where ".$where);
+			$q = $this->db->query('SELECT '.$fields.' from '.$table.' where '.$where);
 			if ($multirow)
 			{
 				while ($row = $this->db->get_row())
@@ -301,14 +366,14 @@ if(!class_exists('BlockPro')) {
 		{
 			if ($this->config['text_limit'] != '0') 
 			{	
-				$data = strip_tags($data, "<br>");
-				$data = trim(str_replace( array("<br>",'<br />'), " ", $data));
+				$data = strip_tags($data, '<br>');
+				$data = trim(str_replace( array('<br>','<br />'), ' ', $data));
 
 				if($count && dle_strlen($data, $this->dle_config['charset'] ) > $count)
 				{
-					$data = dle_substr( $data, 0, $count, $this->dle_config['charset'] ). "&hellip;";					
+					$data = dle_substr( $data, 0, $count, $this->dle_config['charset'] ). '&hellip;';					
 					if( !$this->config['wordcut'] && ($word_pos = dle_strrpos( $data, ' ', $this->dle_config['charset'] )) ) 
-						$data = dle_substr( $data, 0, $word_pos, $this->dle_config['charset'] ). "&hellip;";
+						$data = dle_substr( $data, 0, $word_pos, $this->dle_config['charset'] ). '&hellip;';
 
 				}
 			}
@@ -322,14 +387,20 @@ if(!class_exists('BlockPro')) {
 		 * если картинка не обработалась - выводится пустота
 		 */
 
-		public function getImage($post)
+		public function getImage($post, $date)
 		{	
 			// Задаём папку для картинок
-			$dir = ROOT_DIR . '/uploads/blockpro/'; 
+			$dir_prefix = $this->config['img_size'].'/'.substr($date, 0, -12).'/';
+
+
+			$dir = ROOT_DIR . '/uploads/blockpro/'.$dir_prefix;
+			//$dir = ROOT_DIR . '/uploads/blockpro/'.$this->config['img_size'].'/'; 
+
+			//echo "<pre class='orange'>"; print_r($dir); echo "</pre>";
 
 			// Создаём и назначаем права, если нет таковых
 			if(!is_dir($dir)){						
-				@mkdir($dir, 0755);
+				@mkdir($dir, 0755, true);
 				@chmod($dir, 0755);
 			} 
 			if(!chmod($dir, 0755)) {
@@ -357,7 +428,7 @@ if(!class_exists('BlockPro')) {
 						$imgResized = ROOT_DIR . $urlShort;					
 						
 						// Определяем новое имя файла
-						$fileName = $this->config['img_size']."_".strtolower(basename($imgResized)); 		
+						$fileName = $this->config['img_size'].'_'.strtolower(basename($imgResized)); 		
 
 						// Если картинки нет - создаём её
 						if(!file_exists($dir.$fileName)) 
@@ -376,7 +447,7 @@ if(!class_exists('BlockPro')) {
 							$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro
 						}					 									
 						
-						$imgResized = $this->dle_config['http_home_url']."uploads/blockpro/".$fileName;	
+						$imgResized = $this->dle_config['http_home_url'].'uploads/blockpro/'.$dir_prefix.$fileName;	
 					}
 					// Если параметра img_size нет - отдаём оригинальную картинку
 					else 
@@ -430,7 +501,7 @@ if(!class_exists('BlockPro')) {
 				}
 				else
 				{
-					$url = $this->dle_config['http_home_url'].date("Y/m/d/", strtotime($post['date'])).$post['alt_name'].'.html';
+					$url = $this->dle_config['http_home_url'].date('Y/m/d/', strtotime($post['date'])).$post['alt_name'].'.html';
 				}
 			}
 			else
@@ -482,7 +553,7 @@ if(!class_exists('BlockPro')) {
 		public function showOutput($output)
 		{
 			echo $output;
-			echo "<hr>";
+			echo '<hr>';
 			// echo "<pre class='orange'>"; print_r($output); echo "</pre>";
 			// echo "<hr>";
 		}
@@ -495,10 +566,14 @@ if(!class_exists('BlockPro')) {
 		'template'		=> !empty($template)?$template:'blockpro/blockpro', 		// Название шаблона (без расширения)
 		'prefix'		=> !empty($BpPrefix)?$BpPrefix:'news_', 					// Дефолтный префикс кеша
 		'nocache'		=> !empty($nocache)?$nocache:false,							// Не использовать кеш
-		'cache_live'	=> !empty($cache_live)?$cache_live:false,					// Время жизни кеша
+		'cache_live'	=> !empty($cache_live)?$cache_live:false,					// Время жизни кеша в минутах
 
 		'start_from'	=> !empty($start_from)?$start_from:'0',						// C какой новости начать вывод
 		'limit'			=> !empty($limit)?$limit:'10',								// Количество новостей в блоке	
+
+		'show_cat'		=> !empty($show_cat)?$show_cat:'',							// Категории для показа	(через запятую)
+		'ignore_cat'	=> !empty($ignore_cat)?$ignore_cat:'',						// Игнорируемые категории (через запятую)
+		'noicon'		=> !empty($noicon)?$noicon:'noicon.png',					// Заглушка для иконок категорий
 
 		'day'			=> !empty($day)?$day:false,									// Временной период для отбора новостей		
 		'sort'			=> !empty($sort)?$sort:'top',								// Сортировка (top, date, comms, rating, views)
@@ -527,5 +602,5 @@ if(!class_exists('BlockPro')) {
 	$BlockPro->runBlockPro();
 
 	//Показываем статистику генерации блока
-	if($showstat) echo "<p style='color:red;'>Время выполнения: <b>". round((microtime(true) - $start), 6). "</b> сек</p>";
+	if($showstat) echo '<p style="color:red;">Время выполнения: <b>'. round((microtime(true) - $start), 6). '</b> сек</p>';
 ?>
