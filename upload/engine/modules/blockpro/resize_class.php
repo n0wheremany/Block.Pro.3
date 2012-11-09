@@ -15,6 +15,10 @@
    #
    #
    # ========================================================================#
+// Как всегда главная строка)))
+if( ! defined( 'DATALIFEENGINE' ) ) {
+	// Самый правильный посыл хакеру)))
+	die( '<iframe width="853" height="480" style="margin: 50px;" src="http://www.youtube.com/embed/mTQLW3FNy-g" frameborder="0" allowfullscreen></iframe>' );
 
 
 		Class resize

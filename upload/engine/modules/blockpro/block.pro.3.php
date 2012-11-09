@@ -31,13 +31,14 @@ if(!class_exists('BlockPro')) {
 		public function __construct($BlockProConfig)
 		{
 
-			global $db, $config, $category, $category_id, $cat_info;
+			global $db, $config, $category, $category_id, $cat_info, $lang;
 
 			// ХЗ почему, но глобальные переменные работают только так
 			$this->db = $db;
 			$this->category_id = $category_id;
 			$this->category = $category;
 			$this->cat_info = $cat_info;
+			$this->dle_lang = $lang;
 
 			// Получаем конфиг DLE
 			$this->dle_config = $config;
@@ -51,7 +52,6 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function runBlockPro()
 		{
-			
 			// Определяем сегодняшнюю дату
 			$tooday = date( "Y-m-d H:i:s", (time() + $this->dle_config['date_adjust'] * 60) );
 
@@ -205,6 +205,7 @@ if(!class_exists('BlockPro')) {
 			foreach ($news as $newsItem) 
 			{
 				$xfields = xfieldsload();
+				$newsItem['date'] = strtotime($newsItem['date']);
 
 				// Формируем ссылки на категории и иконки категорий
 				$my_cat = array();
@@ -264,10 +265,19 @@ if(!class_exists('BlockPro')) {
 					$imageFull = $imgArray['imgOriginal'];
 				}
 
+				// Формируем вид даты новости для вывода в шаблон
+				if(date('Ymd', $newsItem['date']) == date('Ymd')) {
+					$showDate = $this->dle_lang['time_heute'].langdate(', H:i', $newsItem['date']);		
+				} elseif(date('Ymd', $newsItem['date'])  == date('Ymd') - 1) {			
+					$showDate = $this->dle_lang['time_gestern'].langdate(', H:i', $newsItem['date']);		
+				} else {			
+					$showDate = langdate($this->dle_config['timestamp_active'], $newsItem['date']);		
+				}
 
 				/**
 				 * Код, формирующий вывод шаблона новости
 				 */
+				$tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
 
 				$output .= $this->applyTemplate($this->config['template'],
 					array(
@@ -290,8 +300,7 @@ if(!class_exists('BlockPro')) {
 						'[/com-link]'		=> $newsItem['allow_comm']?'</a>':'',
 						'{comments-num}'	=> $newsItem['allow_comm']?$newsItem['comm_num']:'',
 						'{views}'			=> $newsItem['news_read'],
-						// '{date}'			=> langdate($this->dle_config['timestamp_active'], $newsItem['date']), //так и не понимаю почему показывает 1970
-						'{date}'			=> $newsItem['date'], // @TODO подправить дату
+						'{date}'			=> $showDate,
 						'{rating}'			=> $newsItem['allow_rate']?ShowRating( $newsItem['id'], $newsItem['rating'], $newsItem['vote_num'], 0 ):'', 
 						'{vote-num}'		=> $newsItem['allow_rate']?$newsItem['vote_num']:'', 
 
@@ -305,6 +314,7 @@ if(!class_exists('BlockPro')) {
 						"'\[allow-comm\\](.*?)\[/allow-comm\]'si"         => $newsItem['allow_comm']?'\\1':'',
 						"'\[not-allow-comm\\](.*?)\[/not-allow-comm\]'si" => !$newsItem['allow_comm']?'\\1':'',
 					)
+
 				);
 			}
 
@@ -390,13 +400,13 @@ if(!class_exists('BlockPro')) {
 		public function getImage($post, $date)
 		{	
 			// Задаём папку для картинок
-			$dir_prefix = $this->config['img_size'].'/'.substr($date, 0, -12).'/';
+			$dir_prefix = $this->config['img_size'].'/'.date("Y-m", $date).'/';
 
 
 			$dir = ROOT_DIR . '/uploads/blockpro/'.$dir_prefix;
 			//$dir = ROOT_DIR . '/uploads/blockpro/'.$this->config['img_size'].'/'; 
 
-			//echo "<pre class='orange'>"; print_r($dir); echo "</pre>";
+			// echo "<pre class='orange'>"; print_r($dir); echo "</pre>";
 
 			// Создаём и назначаем права, если нет таковых
 			if(!is_dir($dir)){						
@@ -513,10 +523,32 @@ if(!class_exists('BlockPro')) {
 		}
 
 		/**
+		 * ***************
+		 * под вопосом
+		 * ***************
+		 *
+		 */
+		public function copyTemplate($data = array())
+		{
+			// заменяем в шаблоне теги
+			foreach ($copyTemplate as $value) 
+			{
+				if ($copyTemplateMetod) {
+					$tpl->copy_template = preg_replace($value, $tpl->copy_template);
+				} else {
+					$tpl->copy_template = str_replace($value, $tpl->copy_template);
+				}				
+				
+			}
+		}
+
+		/**
 		 * Метод подхватывает tpl-шаблон, заменяет в нём теги и возвращает отформатированную строку
 		 * @param $template - название шаблона, который нужно применить
 		 * @param $vars - ассоциативный массив с данными для замены переменных в шаблоне
 		 * @param $blocks - ассоциативный массив с данными для замены блоков в шаблоне
+		 * @param $copyTemplate - массив с данными для замены тегов
+		 * @param $copyTemplateMetod - str_replace или preg_replace в зависимости от переменной
 		 *
 		 * @return string tpl-шаблон, заполненный данными из массива $data
 		 */
