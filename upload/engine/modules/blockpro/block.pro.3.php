@@ -52,9 +52,19 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function runBlockPro()
 		{
+			// Защита от фашистов )))) (НУЖНА ЛИ? )
+			$this->config['post_id']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['post_id'])));
+			$this->config['not_post_id'] = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_post_id'])));
+
+			$this->config['author']      = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['author'])));
+			$this->config['not_author']  = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_author'])));
+
+			$this->config['xfilter']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['xfilter'])));
+			$this->config['not_xfilter']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_xfilter'])));
+
+
 			// Определяем сегодняшнюю дату
 			$tooday = date( "Y-m-d H:i:s", (time() + $this->dle_config['date_adjust'] * 60) );
-
 			// Проверка версии DLE
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
@@ -99,32 +109,65 @@ if(!class_exists('BlockPro')) {
 			// Условие для отображения только постов, прошедших модерацию
 			$wheres[] = 'approve';
 
-			// Условие для отображения только тех постов, дата публикации которых уже наступила
-			$wheres[] = 'date < "'.$tooday.'"';
-
-
+		
 			// Разбираемся с временными рамками отбора новостей, если кол-во дней указано - ограничиваем выборку, если нет - выводим без ограничения даты
-			if ($this->config['day']) 
-			{
-				$interval = $this->config['day'];
-				$dateStart = 'AND date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
-			}
+			// if ($this->config['day']) 
+			// {
+			// 	$interval = $this->config['day'];
+			// 	$dateStart = 'AND date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
+			// }
 
-			if (!$this->config['day']) 
-			{
-				$dateStart = '';
-			}
+			// if (!$this->config['day']) 
+			// {
+			// 	$dateStart = '';
+			// }
 
-			// Фильтрация категорий
+
+			// Фильтрация КАТЕГОРИЙ по их ID
+			if ($this->config['cat_id'] == 'this') $this->config['cat_id'] = $this->category_id;
+			if ($this->config['not_cat_id'] == 'this') $this->config['not_cat_id'] = $this->category_id;
 			
-			if ($this->config['show_cat'] || $this->config['ignore_cat']) {
-				$ignore = ($this->config['ignore_cat']) ? 'NOT ' : '';
-				$catArr = ($this->config['ignore_cat']) ? $this->config['ignore_cat'] : $this->config['show_cat'];	
+			if ($this->config['cat_id'] || $this->config['not_cat_id']) {
+				$ignore = ($this->config['not_cat_id']) ? 'NOT ' : '';
+				$catArr = ($this->config['not_cat_id']) ? $this->config['not_cat_id'] : $this->config['cat_id'];	
 				
 				$wheres[] = $ignore.'category regexp "[[:<:]]('.str_replace(',', '|', $catArr).')[[:>:]]"';				
 			}
-			
 
+			// Фильтрация НОВОСТЕЙ по их ID
+			if ($this->config['post_id'] == 'this') $this->config['post_id'] = $_REQUEST["newsid"];
+			if ($this->config['not_post_id'] == 'this') $this->config['not_post_id'] = $_REQUEST["newsid"];
+
+			if ($this->config['post_id'] || $this->config['not_post_id']) {
+				$ignorePosts = ($this->config['not_post_id']) ? 'NOT ' : '';
+				$postsArr = ($this->config['not_post_id']) ? $this->config['not_post_id'] : $this->config['post_id'];					
+				$wheres[] = $ignorePosts.'id regexp "[[:<:]]('.str_replace(',', '|', $postsArr).')[[:>:]]"';				
+			}
+
+			// Фильтрация новостей по АВТОРАМ
+			if ($this->config['author'] == 'this') $this->config['author'] = $_REQUEST["user"];
+			if ($this->config['not_author'] == 'this') $this->config['not_author'] = $_REQUEST["user"];
+
+			if ($this->config['author'] || $this->config['not_author']) {
+				$ignoreAuthors = ($this->config['not_author']) ? 'NOT ' : '';
+				$authorsArr = ($this->config['not_author']) ? $this->config['not_author'] : $this->config['author'];					
+				$wheres[] = $ignoreAuthors.'autor regexp "[[:<:]]('.str_replace(',', '|', $authorsArr).')[[:>:]]"';				
+			}
+
+			// Фильтрация новостей по ДОПОЛНИТЕЛЬНЫМ ПОЛЯМ
+
+			if ($this->config['xfilter'] || $this->config['not_xfilter']) {
+				$ignoreXfilters = ($this->config['not_xfilter']) ? 'NOT ' : '';
+				$xfiltersArr = ($this->config['not_xfilter']) ? $this->config['not_xfilter'] : $this->config['xfilter'];					
+				$wheres[] = $ignoreXfilters.'xfields regexp "[[:<:]]('.str_replace(',', '|', $xfiltersArr).')[[:>:]]"';				
+			}
+
+			
+			// Разбираемся с временными рамками отбора новостей, если кол-во дней указано - ограничиваем выборку, если нет - выводим без ограничения даты
+			if(intval($this->config['day'])) $wheres[] =  'date >= "'.$tooday.'" - INTERVAL ' .  intval($this->config['day']) . ' DAY';
+
+			// Условие для отображения только тех постов, дата публикации которых уже наступила
+			$wheres[] = 'date < "'.$tooday.'"';
 			
 			// Условие для фильтрации текущего id
 			// $wheres[] = 'id != '.$this->config['postId'];
@@ -188,7 +231,7 @@ if(!class_exists('BlockPro')) {
 			 */
 			//$news = $this->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
 
-			$news = $this->load_table (PREFIX . '_post p LEFT JOIN ' . PREFIX . '_post_extras e ON (p.id=e.news_id)', $selectRows, $where . $dateStart, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
+			$news = $this->load_table (PREFIX . '_post p LEFT JOIN ' . PREFIX . '_post_extras e ON (p.id=e.news_id)', $selectRows, $where, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
 
 
 			if(empty($news)) $news = array();
@@ -351,14 +394,14 @@ if(!class_exists('BlockPro')) {
 			$q = $this->db->query('SELECT '.$fields.' from '.$table.' where '.$where);
 			if ($multirow)
 			{
-				while ($row = $this->db->get_row())
+				while ($row = $this->db->get_row($q))
 				{
 					$values[] = $row;
 				}
 			}
 			else
 			{
-				$values = $this->db->get_row();
+				$values = $this->db->get_row($q);
 			}
 			if (count($values)>0) return $values;
 			
@@ -495,7 +538,7 @@ if(!class_exists('BlockPro')) {
 			if($this->dle_config['allow_alt_url'] == 'yes')
 			{
 				if(
-					($this->dle_config['version_id'] < 9.6 && $post['flag'] && $this->dle_config['seo_type'])
+					($this->dle_config['version_id'] < 9.6 && $this->dle_config['seo_type'])
 						||
 					($this->dle_config['version_id'] >= 9.6 && ($this->dle_config['seo_type'] == 1 || $this->dle_config['seo_type'] == 2))
 				)
@@ -603,8 +646,18 @@ if(!class_exists('BlockPro')) {
 		'start_from'	=> !empty($start_from)?$start_from:'0',						// C какой новости начать вывод
 		'limit'			=> !empty($limit)?$limit:'10',								// Количество новостей в блоке	
 
-		'show_cat'		=> !empty($show_cat)?$show_cat:'',							// Категории для показа	(через запятую)
-		'ignore_cat'	=> !empty($ignore_cat)?$ignore_cat:'',						// Игнорируемые категории (через запятую)
+		'post_id'		=> !empty($post_id)?$post_id:'',							// ID новостей для вывода в блоке (через запятую)
+		'not_post_id'	=> !empty($not_post_id)?$not_post_id:'',					// ID игнорируемых новостей (через запятую)
+
+		'author'		=> !empty($author)?$author:'',								// Логины авторов, для показа их новостей в блоке (через запятую)
+		'not_author'	=> !empty($not_author)?$not_author:'',						// Логины игнорируемых авторов (через запятую)
+
+		'xfilter'		=> !empty($xfilter)?$xfilter:'',							// Имена дополнительных полей для фильтрации по ним новостей (через запятую)
+		'not_xfilter'	=> !empty($not_xfilter)?$not_xfilter:'',					// Имена дополнительных полей для игнорирования показа (через запятую)
+
+		'cat_id'		=> !empty($cat_id)?$cat_id:'',								// Категории для показа	(через запятую)
+		'not_cat_id'	=> !empty($not_cat_id)?$not_cat_id:'',						// Игнорируемые категории (через запятую)
+		
 		'noicon'		=> !empty($noicon)?$noicon:'noicon.png',					// Заглушка для иконок категорий
 
 		'day'			=> !empty($day)?$day:false,									// Временной период для отбора новостей		
@@ -621,8 +674,7 @@ if(!class_exists('BlockPro')) {
 		
 
 		'text_limit'	=> !empty($text_limit)?$text_limit:false,					// Ограничение количества символов
-		'wordcut'		=> !empty($wordcut)?$wordcut:false,							// Жесткое ограничение кол-ва символов, без учета длины слов
-		
+		'wordcut'		=> !empty($wordcut)?$wordcut:false,							// Жесткое ограничение кол-ва символов, без учета длины слов		
 
 		'showstat'		=> !empty($showstat)?$showstat:false,						// Показывать время стату по блоку
 
