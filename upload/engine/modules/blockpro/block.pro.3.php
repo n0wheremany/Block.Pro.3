@@ -26,17 +26,15 @@ if( ! defined( 'DATALIFEENGINE' ) ) {
 if($showstat) $start = microtime(true);
 if(!class_exists('BlockPro')) {
 	class BlockPro {
-
+		protected static $_instance;
 		// Конструктор конфига модуля
-		public function __construct($BlockProConfig)
+		private function __construct($BlockProConfig)
 		{
 
 			global $db, $config, $category, $category_id, $cat_info, $lang;
 
 			// ХЗ почему, но глобальные переменные работают только так
 			$this->db = $db;
-			$this->category_id = $category_id;
-			$this->category = $category;
 			$this->cat_info = $cat_info;
 			$this->dle_lang = $lang;
 
@@ -45,12 +43,40 @@ if(!class_exists('BlockPro')) {
 			
 			// Задаем конфигуратор класса
 			$this->config = $BlockProConfig;
+			
+			$this->get_category();
+		}
+				
+		public function __clone(){}
+		private function __wakeup() {}
+		
+		/**
+		* Статическая функция, которая возвращает
+		* экземпляр класса или создает новый при
+		* необходимости
+		*
+		* @return SingletonTest
+		*/
+		 public static function getInstance() {
+			if (null === self::$_instance) {
+		        	self::$_instance = new self();
+		        }
+		        return self::$_instance;
+		}
+		
+		/*
+		 * Обновление даных
+		 */
+		public function get_category() {
+			global $category, $category_id;
+			$this->category_id = $category_id;
+			$this->category = $category;		
 		}
 
 		/*
 		 * Главный метод класса BlockPro
 		 */
-		public function runBlockPro()
+		public static function runBlockPro()
 		{
 			// Защита от фашистов )))) (НУЖНА ЛИ? )
 			$this->config['post_id']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['post_id'])));
@@ -577,9 +603,9 @@ if(!class_exists('BlockPro')) {
 			foreach ($copyTemplate as $value) 
 			{
 				if ($copyTemplateMetod) {
-					$tpl->copy_template = preg_replace($value, $tpl->copy_template);
+					$this->tpl->copy_template = preg_replace($value, $this->tpl->copy_template);
 				} else {
-					$tpl->copy_template = str_replace($value, $tpl->copy_template);
+					$this->tpl->copy_template = str_replace($value, $this->tpl->copy_template);
 				}				
 				
 			}
@@ -597,28 +623,32 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function applyTemplate($template, $vars = array(), $blocks = array())
 		{
+			if(!isset($this->tpl)) {
+				$this->tpl = new dle_template();
+				$this->tpl->dir = TEMPLATE_DIR;
+			} else {
+				$this->tpl->global_clear();
+			}
 			// Подключаем файл шаблона $template.tpl, заполняем его
-			$tpl = new dle_template();
-			$tpl->dir = TEMPLATE_DIR;
-			$tpl->load_template($template.'.tpl');
+			$this->tpl->load_template($template.'.tpl');
 
 			// Заполняем шаблон переменными
 			foreach($vars as $var => $value)
 			{
-				$tpl->set($var, $value);
+				$this->tpl->set($var, $value);
 			}
 
 			// Заполняем шаблон блоками
 			foreach($blocks as $block => $value)
 			{
-				$tpl->set_block($block, $value);
+				$this->tpl->set_block($block, $value);
 			}
 
 			// Компилируем шаблон (что бы это не означало ;))
-			$tpl->compile($template);
+			$this->tpl->compile($template);
 
 			// Выводим результат
-			return $tpl->result[$template];
+			return $this->tpl->result[$template];
 		}
 
 		/*
@@ -682,8 +712,13 @@ if(!class_exists('BlockPro')) {
 	);
 	
 	// Создаем экземпляр класса для перелинковки и запускаем его главный метод
-	$BlockPro = new BlockPro($BlockProConfig);
+	//$BlockPro = new BlockPro($BlockProConfig); // В сингелтоне такое неьзя делать
+	$BlockPro = BlockPro::getInstance();
 	$BlockPro->runBlockPro();
+	
+	// так же можно так прописать  - магия statiс )) 
+	//BlockPro::getInstance()
+	//BlockPro::runBlockPro()
 
 	//Показываем статистику генерации блока
 	if($showstat) echo '<p style="color:red;">Время выполнения: <b>'. round((microtime(true) - $start), 6). '</b> сек</p>';
