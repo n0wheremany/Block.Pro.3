@@ -353,7 +353,7 @@ if(!class_exists('BlockPro')) {
 				 */
 				//$tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
 				// проверяем существует ли файл шаблона, если есть - работаем дальше
-				if (file_exists(TEMPLATE_DIR.'/'.$template.'.tpl')) 
+				if (file_exists(TEMPLATE_DIR.'/'.$this->config['template'].'.tpl')) 
 				{
 					$output .= $this->applyTemplate($this->config['template'],
 						array(
