@@ -28,23 +28,16 @@ if(!class_exists('BlockPro')) {
 	class BlockPro {
 		protected static $_instance;
 		// Конструктор конфига модуля
-		private function __construct($BlockProConfig)
+		private function __construct()
 		{
-
 			global $db, $config, $category, $category_id, $cat_info, $lang;
 
-			// ХЗ почему, но глобальные переменные работают только так
 			$this->db = $db;
 			$this->cat_info = $cat_info;
 			$this->dle_lang = $lang;
 
 			// Получаем конфиг DLE
 			$this->dle_config = $config;
-			
-			// Задаем конфигуратор класса
-			$this->config = $BlockProConfig;
-			
-			$this->get_category();
 		}
 				
 		public function __clone(){}
@@ -63,7 +56,15 @@ if(!class_exists('BlockPro')) {
 		        }
 		        return self::$_instance;
 		}
-		
+
+		/*
+		 * Новый конфиг
+		 */
+		public function set_config($cfg) {
+			// Задаем конфигуратор класса
+			$this->config = $cfg;
+		}
+
 		/*
 		 * Обновление даных
 		 */
@@ -76,8 +77,12 @@ if(!class_exists('BlockPro')) {
 		/*
 		 * Главный метод класса BlockPro
 		 */
-		public function runBlockPro()
+		public function runBlockPro($BlockProConfig)
 		{
+
+			$this->get_category();
+			$this->set_config($BlockProConfig);
+
 			// Защита от фашистов )))) (НУЖНА ЛИ? )
 			$this->config['post_id']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['post_id'])));
 			$this->config['not_post_id'] = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_post_id'])));
@@ -718,11 +723,8 @@ if(!class_exists('BlockPro')) {
 	// Создаем экземпляр класса для перелинковки и запускаем его главный метод
 	//$BlockPro = new BlockPro($BlockProConfig); // В сингелтоне такое неьзя делать
 	$BlockPro = BlockPro::getInstance();
-	$BlockPro->runBlockPro();
-	
-	// так же можно так прописать  - магия statiс )) 
-	//BlockPro::getInstance()
-	//BlockPro::runBlockPro()
+	$BlockPro->runBlockPro($BlockProConfig);
+
 
 	//Показываем статистику генерации блока
 	if($showstat) echo '<p style="color:red;">Время выполнения: <b>'. round((microtime(true) - $start), 6). '</b> сек</p>';
