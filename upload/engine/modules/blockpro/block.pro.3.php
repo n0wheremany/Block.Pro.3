@@ -26,17 +26,15 @@ if( ! defined( 'DATALIFEENGINE' ) ) {
 if($showstat) $start = microtime(true);
 if(!class_exists('BlockPro')) {
 	class BlockPro {
-
+		protected static $_instance;
 		// Конструктор конфига модуля
-		public function __construct($BlockProConfig)
+		private function __construct($BlockProConfig)
 		{
 
 			global $db, $config, $category, $category_id, $cat_info, $lang;
 
 			// ХЗ почему, но глобальные переменные работают только так
 			$this->db = $db;
-			$this->category_id = $category_id;
-			$this->category = $category;
 			$this->cat_info = $cat_info;
 			$this->dle_lang = $lang;
 
@@ -45,6 +43,34 @@ if(!class_exists('BlockPro')) {
 			
 			// Задаем конфигуратор класса
 			$this->config = $BlockProConfig;
+			
+			$this->get_category();
+		}
+				
+		public function __clone(){}
+		private function __wakeup() {}
+		
+		/**
+		* Статическая функция, которая возвращает
+		* экземпляр класса или создает новый при
+		* необходимости
+		*
+		* @return SingletonTest
+		*/
+		 public static function getInstance() {
+			if (null === self::$_instance) {
+		        	self::$_instance = new self();
+		        }
+		        return self::$_instance;
+		}
+		
+		/*
+		 * Обновление даных
+		 */
+		public function get_category() {
+			global $category, $category_id;
+			$this->category_id = $category_id;
+			$this->category = $category;		
 		}
 
 		/*
@@ -320,45 +346,52 @@ if(!class_exists('BlockPro')) {
 				/**
 				 * Код, формирующий вывод шаблона новости
 				 */
-				$tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
+				//$tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
+				// проверяем существует ли файл шаблона, если есть - работаем дальше
+				if (file_exists(TEMPLATE_DIR.'/'.$template.'.tpl')) 
+				{
+					$output .= $this->applyTemplate($this->config['template'],
+						array(
+							'{title}'          	=> $newsItem['title'],
+							'{full-link}'		=> $this->getPostUrl($newsItem),
+							'{image}'			=> $image,
+							'{image_full}'		=> $imageFull,
+							'{short-story}' 	=> $this->textLimit($newsItem['short_story'], $this->config['text_limit']),
+	                    	'{full-story}'  	=> $this->textLimit($newsItem['full_story'], $this->config['text_limit']),
+	                    	'{link-category}'	=> implode(', ', $my_cat_link),
+							'{category}'		=> implode(', ', $my_cat),
+							'{category-icon}'	=> implode('', $my_cat_icon),
+							'{category-url}'	=> $categoryUrl,
+							'{news-id}'			=> $newsItem['id'],
+							'{author}'			=> "<a onclick=\"ShowProfile('" . urlencode( $newsItem['autor'] ) . "', '" . $go_page . "', '" . $user_group[$member_id['user_group']]['admin_editusers'] . "'); return false;\" href=\"" . $go_page . "\">" . $newsItem['autor'] . "</a>",
+							'{login}'			=> $newsItem['autor'],
+							'[profile]'			=> '<a href="'.$go_page.'">',
+							'[/profile]'		=> '</a>',
+							'[com-link]'		=> $newsItem['allow_comm']?'<a href="'.$this->getPostUrl($newsItem).'#comment">':'',
+							'[/com-link]'		=> $newsItem['allow_comm']?'</a>':'',
+							'{comments-num}'	=> $newsItem['allow_comm']?$newsItem['comm_num']:'',
+							'{views}'			=> $newsItem['news_read'],
+							'{date}'			=> $showDate,
+							'{rating}'			=> $newsItem['allow_rate']?ShowRating( $newsItem['id'], $newsItem['rating'], $newsItem['vote_num'], 0 ):'', 
+							'{vote-num}'		=> $newsItem['allow_rate']?$newsItem['vote_num']:'', 
 
-				$output .= $this->applyTemplate($this->config['template'],
-					array(
-						'{title}'          	=> $newsItem['title'],
-						'{full-link}'		=> $this->getPostUrl($newsItem),
-						'{image}'			=> $image,
-						'{image_full}'		=> $imageFull,
-						'{short-story}' 	=> $this->textLimit($newsItem['short_story'], $this->config['text_limit']),
-                    	'{full-story}'  	=> $this->textLimit($newsItem['full_story'], $this->config['text_limit']),
-                    	'{link-category}'	=> implode(', ', $my_cat_link),
-						'{category}'		=> implode(', ', $my_cat),
-						'{category-icon}'	=> implode('', $my_cat_icon),
-						'{category-url}'	=> $categoryUrl,
-						'{news-id}'			=> $newsItem['id'],
-						'{author}'			=> "<a onclick=\"ShowProfile('" . urlencode( $newsItem['autor'] ) . "', '" . $go_page . "', '" . $user_group[$member_id['user_group']]['admin_editusers'] . "'); return false;\" href=\"" . $go_page . "\">" . $newsItem['autor'] . "</a>",
-						'{login}'			=> $newsItem['autor'],
-						'[profile]'			=> '<a href="'.$go_page.'">',
-						'[/profile]'		=> '</a>',
-						'[com-link]'		=> $newsItem['allow_comm']?'<a href="'.$this->getPostUrl($newsItem).'#comment">':'',
-						'[/com-link]'		=> $newsItem['allow_comm']?'</a>':'',
-						'{comments-num}'	=> $newsItem['allow_comm']?$newsItem['comm_num']:'',
-						'{views}'			=> $newsItem['news_read'],
-						'{date}'			=> $showDate,
-						'{rating}'			=> $newsItem['allow_rate']?ShowRating( $newsItem['id'], $newsItem['rating'], $newsItem['vote_num'], 0 ):'', 
-						'{vote-num}'		=> $newsItem['allow_rate']?$newsItem['vote_num']:'', 
+						),
+						array(
+							// "'\[show_name\\](.*?)\[/show_name\]'si" => !empty($name)?"\\1":'',
+							// "'\[show_description\\](.*?)\[/show_description\]'si" => !empty($description)?"\\1":'',
+							"'\[comments\\](.*?)\[/comments\]'si"             => $newsItem['comm_num']!=='0'?'\\1':'',
+							"'\[not-comments\\](.*?)\[/not-comments\]'si"     => $newsItem['comm_num']=='0'?'\\1':'',
+							"'\[rating\\](.*?)\[/rating\]'si"                 => $newsItem['allow_rate']?'\\1':'',
+							"'\[allow-comm\\](.*?)\[/allow-comm\]'si"         => $newsItem['allow_comm']?'\\1':'',
+							"'\[not-allow-comm\\](.*?)\[/not-allow-comm\]'si" => !$newsItem['allow_comm']?'\\1':'',
+						)
 
-					),
-					array(
-						// "'\[show_name\\](.*?)\[/show_name\]'si" => !empty($name)?"\\1":'',
-						// "'\[show_description\\](.*?)\[/show_description\]'si" => !empty($description)?"\\1":'',
-						"'\[comments\\](.*?)\[/comments\]'si"             => $newsItem['comm_num']!=='0'?'\\1':'',
-						"'\[not-comments\\](.*?)\[/not-comments\]'si"     => $newsItem['comm_num']=='0'?'\\1':'',
-						"'\[rating\\](.*?)\[/rating\]'si"                 => $newsItem['allow_rate']?'\\1':'',
-						"'\[allow-comm\\](.*?)\[/allow-comm\]'si"         => $newsItem['allow_comm']?'\\1':'',
-						"'\[not-allow-comm\\](.*?)\[/not-allow-comm\]'si" => !$newsItem['allow_comm']?'\\1':'',
-					)
-
-				);
+					);
+				} else 
+				{
+					// Если файла шаблона нет - выведем ошибку, а не белый лист.
+					$output = '<b style="color: red;">Отсутствует файл шаблона: '.$template.'.tpl</b>';
+				}
 			}
 
 			// Cохраняем в кэш по данной конфигурации если nocache false
@@ -577,48 +610,49 @@ if(!class_exists('BlockPro')) {
 			foreach ($copyTemplate as $value) 
 			{
 				if ($copyTemplateMetod) {
-					$tpl->copy_template = preg_replace($value, $tpl->copy_template);
+					$this->tpl->copy_template = preg_replace($value, $this->tpl->copy_template);
 				} else {
-					$tpl->copy_template = str_replace($value, $tpl->copy_template);
+					$this->tpl->copy_template = str_replace($value, $this->tpl->copy_template);
 				}				
 				
 			}
 		}
-
 		/**
 		 * Метод подхватывает tpl-шаблон, заменяет в нём теги и возвращает отформатированную строку
 		 * @param $template - название шаблона, который нужно применить
 		 * @param $vars - ассоциативный массив с данными для замены переменных в шаблоне
 		 * @param $blocks - ассоциативный массив с данными для замены блоков в шаблоне
-		 * @param $copyTemplate - массив с данными для замены тегов
-		 * @param $copyTemplateMetod - str_replace или preg_replace в зависимости от переменной
 		 *
 		 * @return string tpl-шаблон, заполненный данными из массива $data
 		 */
 		public function applyTemplate($template, $vars = array(), $blocks = array())
 		{
+			if(!isset($this->tpl)) {
+				$this->tpl = new dle_template();
+				$this->tpl->dir = TEMPLATE_DIR;
+			} else {
+				$this->tpl->global_clear();
+			}
 			// Подключаем файл шаблона $template.tpl, заполняем его
-			$tpl = new dle_template();
-			$tpl->dir = TEMPLATE_DIR;
-			$tpl->load_template($template.'.tpl');
+			$this->tpl->load_template($template.'.tpl');
 
 			// Заполняем шаблон переменными
 			foreach($vars as $var => $value)
 			{
-				$tpl->set($var, $value);
+				$this->tpl->set($var, $value);
 			}
 
 			// Заполняем шаблон блоками
 			foreach($blocks as $block => $value)
 			{
-				$tpl->set_block($block, $value);
+				$this->tpl->set_block($block, $value);
 			}
 
 			// Компилируем шаблон (что бы это не означало ;))
-			$tpl->compile($template);
+			$this->tpl->compile($template);
 
 			// Выводим результат
-			return $tpl->result[$template];
+			return $this->tpl->result[$template];
 		}
 
 		/*
@@ -682,8 +716,13 @@ if(!class_exists('BlockPro')) {
 	);
 	
 	// Создаем экземпляр класса для перелинковки и запускаем его главный метод
-	$BlockPro = new BlockPro($BlockProConfig);
+	//$BlockPro = new BlockPro($BlockProConfig); // В сингелтоне такое неьзя делать
+	$BlockPro = BlockPro::getInstance();
 	$BlockPro->runBlockPro();
+	
+	// так же можно так прописать  - магия statiс )) 
+	//BlockPro::getInstance()
+	//BlockPro::runBlockPro()
 
 	//Показываем статистику генерации блока
 	if($showstat) echo '<p style="color:red;">Время выполнения: <b>'. round((microtime(true) - $start), 6). '</b> сек</p>';
