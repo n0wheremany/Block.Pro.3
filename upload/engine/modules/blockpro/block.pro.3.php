@@ -30,14 +30,10 @@ if(!class_exists('BlockPro')) {
 		// Конструктор конфига модуля
 		private function __construct()
 		{
-			global $db, $config, $category, $category_id, $cat_info, $lang;
-
-			$this->db = $db;
-			$this->cat_info = $cat_info;
-			$this->dle_lang = $lang;
+			global $config;
 
 			// Получаем конфиг DLE
-			$this->dle_config = $config;
+			$this->dle_config = &$config;
 		}
 				
 		public function __clone(){}
@@ -50,7 +46,8 @@ if(!class_exists('BlockPro')) {
 		*
 		* @return SingletonTest
 		*/
-		 public static function getInstance() {
+		 public static function getInstance() 
+		 {
 			if (null === self::$_instance) {
 		        	self::$_instance = new self();
 		        }
@@ -60,7 +57,8 @@ if(!class_exists('BlockPro')) {
 		/*
 		 * Новый конфиг
 		 */
-		public function set_config($cfg) {
+		public function set_config($cfg) 
+		{
 			// Задаем конфигуратор класса
 			$this->config = $cfg;
 		}
@@ -68,7 +66,8 @@ if(!class_exists('BlockPro')) {
 		/*
 		 * Обновление даных
 		 */
-		public function get_category() {
+		public function get_category() 
+		{
 			global $category, $category_id;
 			$this->category_id = $category_id;
 			$this->category = $category;		
@@ -79,23 +78,24 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function runBlockPro($BlockProConfig)
 		{
+		global $db, $cat_info, $lang;
 
 			$this->get_category();
 			$this->set_config($BlockProConfig);
 
 			// Защита от фашистов )))) (НУЖНА ЛИ? )
-			$this->config['post_id']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['post_id'])));
-			$this->config['not_post_id'] = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_post_id'])));
+			$this->config['post_id']     = @$db->safesql(strip_tags(str_replace('/', '', $this->config['post_id'])));
+			$this->config['not_post_id'] = @$db->safesql(strip_tags(str_replace('/', '', $this->config['not_post_id'])));
 
-			$this->config['author']      = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['author'])));
-			$this->config['not_author']  = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_author'])));
+			$this->config['author']      = @$db->safesql(strip_tags(str_replace('/', '', $this->config['author'])));
+			$this->config['not_author']  = @$db->safesql(strip_tags(str_replace('/', '', $this->config['not_author'])));
 
-			$this->config['xfilter']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['xfilter'])));
-			$this->config['not_xfilter']     = @$this->db->safesql(strip_tags(str_replace('/', '', $this->config['not_xfilter'])));
+			$this->config['xfilter']     = @$db->safesql(strip_tags(str_replace('/', '', $this->config['xfilter'])));
+			$this->config['not_xfilter'] = @$db->safesql(strip_tags(str_replace('/', '', $this->config['not_xfilter'])));
 
 
 			// Определяем сегодняшнюю дату
-			$tooday = date( "Y-m-d H:i:s", (time() + $this->dle_config['date_adjust'] * 60) );
+			$tooday = date("Y-m-d H:i:s", (time() + $this->dle_config['date_adjust'] * 60));
 			// Проверка версии DLE
 			if ($this->dle_config['version_id'] >= 9.6) $newVersion = true;
 			
@@ -121,7 +121,8 @@ if(!class_exists('BlockPro')) {
 			{
 				$output = dle_cache($this->config['prefix'].'bp_'.md5(implode('_', $this->config)));
 			}
-			if ($clear_time_cache) {
+			if ($clear_time_cache) 
+			{
 				$output = false;
 			}
 			
@@ -140,25 +141,12 @@ if(!class_exists('BlockPro')) {
 			// Условие для отображения только постов, прошедших модерацию
 			$wheres[] = 'approve';
 
-		
-			// Разбираемся с временными рамками отбора новостей, если кол-во дней указано - ограничиваем выборку, если нет - выводим без ограничения даты
-			// if ($this->config['day']) 
-			// {
-			// 	$interval = $this->config['day'];
-			// 	$dateStart = 'AND date >= "'.$tooday.'" - INTERVAL "'.$interval.'" DAY'; 
-			// }
-
-			// if (!$this->config['day']) 
-			// {
-			// 	$dateStart = '';
-			// }
-
-
 			// Фильтрация КАТЕГОРИЙ по их ID
 			if ($this->config['cat_id'] == 'this') $this->config['cat_id'] = $this->category_id;
 			if ($this->config['not_cat_id'] == 'this') $this->config['not_cat_id'] = $this->category_id;
 			
-			if ($this->config['cat_id'] || $this->config['not_cat_id']) {
+			if ($this->config['cat_id'] || $this->config['not_cat_id']) 
+			{
 				$ignore = ($this->config['not_cat_id']) ? 'NOT ' : '';
 				$catArr = ($this->config['not_cat_id']) ? $this->config['not_cat_id'] : $this->config['cat_id'];	
 				
@@ -169,7 +157,8 @@ if(!class_exists('BlockPro')) {
 			if ($this->config['post_id'] == 'this') $this->config['post_id'] = $_REQUEST["newsid"];
 			if ($this->config['not_post_id'] == 'this') $this->config['not_post_id'] = $_REQUEST["newsid"];
 
-			if ($this->config['post_id'] || $this->config['not_post_id']) {
+			if ($this->config['post_id'] || $this->config['not_post_id']) 
+			{
 				$ignorePosts = ($this->config['not_post_id']) ? 'NOT ' : '';
 				$postsArr = ($this->config['not_post_id']) ? $this->config['not_post_id'] : $this->config['post_id'];					
 				$wheres[] = $ignorePosts.'id regexp "[[:<:]]('.str_replace(',', '|', $postsArr).')[[:>:]]"';				
@@ -179,7 +168,8 @@ if(!class_exists('BlockPro')) {
 			if ($this->config['author'] == 'this') $this->config['author'] = $_REQUEST["user"];
 			if ($this->config['not_author'] == 'this') $this->config['not_author'] = $_REQUEST["user"];
 
-			if ($this->config['author'] || $this->config['not_author']) {
+			if ($this->config['author'] || $this->config['not_author']) 
+			{
 				$ignoreAuthors = ($this->config['not_author']) ? 'NOT ' : '';
 				$authorsArr = ($this->config['not_author']) ? $this->config['not_author'] : $this->config['author'];					
 				$wheres[] = $ignoreAuthors.'autor regexp "[[:<:]]('.str_replace(',', '|', $authorsArr).')[[:>:]]"';				
@@ -187,7 +177,8 @@ if(!class_exists('BlockPro')) {
 
 			// Фильтрация новостей по ДОПОЛНИТЕЛЬНЫМ ПОЛЯМ
 
-			if ($this->config['xfilter'] || $this->config['not_xfilter']) {
+			if ($this->config['xfilter'] || $this->config['not_xfilter']) 
+			{
 				$ignoreXfilters = ($this->config['not_xfilter']) ? 'NOT ' : '';
 				$xfiltersArr = ($this->config['not_xfilter']) ? $this->config['not_xfilter'] : $this->config['xfilter'];					
 				$wheres[] = $ignoreXfilters.'xfields regexp "[[:<:]]('.str_replace(',', '|', $xfiltersArr).')[[:>:]]"';				
@@ -260,7 +251,6 @@ if(!class_exists('BlockPro')) {
 			 * @param $sort_order - направление сортировки
 			 * @return array с данными или false если mysql вернуль 0 рядов
 			 */
-			//$news = $this->load_table (PREFIX."_post", $fields = "*", $where = '1', $multirow = false, $start = 0, $limit = 10, $sort = '', $sort_order = 'desc');
 
 			$news = $this->load_table (PREFIX . '_post p LEFT JOIN ' . PREFIX . '_post_extras e ON (p.id=e.news_id)', $selectRows, $where, true, $this->config['start_from'], $this->config['limit'], $sort, $ordering);
 
@@ -287,16 +277,16 @@ if(!class_exists('BlockPro')) {
 				$my_cat_link = array();
 				$cat_list = explode(',', $newsItem['category']);
 				foreach($cat_list as $element) {
-					if(isset($this->cat_info[$element])) {
-						$my_cat[] = $this->cat_info[$element]['name'];
-						if ($this->cat_info[$element]['icon'])
-							$my_cat_icon[] = '<img class="bp-cat-icon" src="'.$this->cat_info[$element]['icon'].'" alt="'.$this->cat_info[$element]['name'].'" />';
+					if(isset($cat_info[$element])) {
+						$my_cat[] = $cat_info[$element]['name'];
+						if ($cat_info[$element]['icon'])
+							$my_cat_icon[] = '<img class="bp-cat-icon" src="'.$cat_info[$element]['icon'].'" alt="'.$cat_info[$element]['name'].'" />';
 						else
-							$my_cat_icon[] = '<img class="bp-cat-icon" src="{THEME}/blockpro/'.$this->config['noicon'].'" alt="'.$this->cat_info[$element]['name'].'" />';
+							$my_cat_icon[] = '<img class="bp-cat-icon" src="{THEME}/blockpro/'.$this->config['noicon'].'" alt="'.$cat_info[$element]['name'].'" />';
 						if( $this->dle_config['allow_alt_url'] == 'yes' ) 
-							$my_cat_link[] = '<a href="'.$this->dle_config['http_home_url'].get_url($element).'/">'.$this->cat_info[$element]['name'].'</a>';
+							$my_cat_link[] = '<a href="'.$this->dle_config['http_home_url'].get_url($element).'/">'.$cat_info[$element]['name'].'</a>';
 						else 
-							$my_cat_link[] = '<a href="'.$PHP_SELF.'?do=cat&category='.$this->cat_info[$element]['alt_name'].'">'.$this->cat_info[$element]['name'].'</a>';
+							$my_cat_link[] = '<a href="'.$PHP_SELF.'?do=cat&category='.$cat_info[$element]['alt_name'].'">'.$cat_info[$element]['name'].'</a>';
 					}
 				}
 				$categoryUrl = ($newsItem['category']) ? $this->dle_config['http_home_url'] . get_url(intval($newsItem['category'])) . '/' : '/' ;
@@ -341,9 +331,9 @@ if(!class_exists('BlockPro')) {
 
 				// Формируем вид даты новости для вывода в шаблон
 				if(date('Ymd', $newsItem['date']) == date('Ymd')) {
-					$showDate = $this->dle_lang['time_heute'].langdate(', H:i', $newsItem['date']);		
+					$showDate = $lang['time_heute'].langdate(', H:i', $newsItem['date']);		
 				} elseif(date('Ymd', $newsItem['date'])  == date('Ymd') - 1) {			
-					$showDate = $this->dle_lang['time_gestern'].langdate(', H:i', $newsItem['date']);		
+					$showDate = $lang['time_gestern'].langdate(', H:i', $newsItem['date']);		
 				} else {			
 					$showDate = langdate($this->dle_config['timestamp_active'], $newsItem['date']);		
 				}
@@ -351,7 +341,8 @@ if(!class_exists('BlockPro')) {
 				/**
 				 * Код, формирующий вывод шаблона новости
 				 */
-				//$tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
+				// $tpl->copy_template = preg_replace("#\{date=(.+?)\}#ie", "langdate('\\1', '{$newsItem['date']}')", $tpl->copy_template );
+
 				// проверяем существует ли файл шаблона, если есть - работаем дальше
 				if (file_exists(TEMPLATE_DIR.'/'.$this->config['template'].'.tpl')) 
 				{
@@ -425,21 +416,23 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function load_table ($table, $fields = '*', $where = '1', $multirow = false, $start = 0, $limit = 0, $sort = '', $sort_order = 'desc')
 		{
+			global $db;
+			
 			if (!$table) return false;
 
 			if ($sort!='') $where.= ' order by '.$sort.' '.$sort_order;
 			if ($limit>0) $where.= ' limit '.$start.','.$limit;
-			$q = $this->db->query('SELECT '.$fields.' from '.$table.' where '.$where);
+			$q = $db->query('SELECT '.$fields.' from '.$table.' where '.$where);
 			if ($multirow)
 			{
-				while ($row = $this->db->get_row($q))
+				while ($row = $db->get_row($q))
 				{
 					$values[] = $row;
 				}
 			}
 			else
 			{
-				$values = $this->db->get_row($q);
+				$values = $db->get_row($q);
 			}
 			if (count($values)>0) return $values;
 			
@@ -482,7 +475,6 @@ if(!class_exists('BlockPro')) {
 		{	
 			// Задаём папку для картинок
 			$dir_prefix = $this->config['img_size'].'/'.date("Y-m", $date).'/';
-
 
 			$dir = ROOT_DIR . '/uploads/blockpro/'.$dir_prefix;
 			//$dir = ROOT_DIR . '/uploads/blockpro/'.$this->config['img_size'].'/'; 
@@ -535,7 +527,7 @@ if(!class_exists('BlockPro')) {
 								$img_size[1], 								//Высота
 								$this->config['resize_type']				//Метод уменьшения (exact, portrait, landscape, auto, crop)
 								); 
-							$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro
+							$resizeImg -> saveImage($dir.$fileName); 		//Сохраняем картинку в папку /uploads/blockpro/[размер_уменьшенной_копии]/[месяц_создания новости]
 						}					 									
 						
 						$imgResized = $this->dle_config['http_home_url'].'uploads/blockpro/'.$dir_prefix.$fileName;	
@@ -614,10 +606,11 @@ if(!class_exists('BlockPro')) {
 			// заменяем в шаблоне теги
 			foreach ($copyTemplate as $value) 
 			{
+			global $tpl;
 				if ($copyTemplateMetod) {
-					$this->tpl->copy_template = preg_replace($value, $this->tpl->copy_template);
+					$tpl->copy_template = preg_replace($value, $tpl->copy_template);
 				} else {
-					$this->tpl->copy_template = str_replace($value, $this->tpl->copy_template);
+					$tpl->copy_template = str_replace($value, $tpl->copy_template);
 				}				
 				
 			}
@@ -632,32 +625,34 @@ if(!class_exists('BlockPro')) {
 		 */
 		public function applyTemplate($template, $vars = array(), $blocks = array())
 		{
-			if(!isset($this->tpl)) {
-				$this->tpl = new dle_template();
-				$this->tpl->dir = TEMPLATE_DIR;
+		global $tpl;
+			if(!isset($tpl)) {
+				$tpl = new dle_template();
+				$tpl->dir = TEMPLATE_DIR;
 			} else {
-				$this->tpl->global_clear();
+				$tpl->result['blockPro'] = '';
 			}
 			// Подключаем файл шаблона $template.tpl, заполняем его
-			$this->tpl->load_template($template.'.tpl');
+			$tpl->load_template($template.'.tpl');
 
 			// Заполняем шаблон переменными
-			foreach($vars as $var => $value)
-			{
-				$this->tpl->set($var, $value);
-			}
+			//foreach($vars as $var => $value)
+			//{
+			//	$tpl->set($var, $value);
+			//}
+				$tpl->set('', $vars);
 
 			// Заполняем шаблон блоками
 			foreach($blocks as $block => $value)
 			{
-				$this->tpl->set_block($block, $value);
+				$tpl->set_block($block, $value);
 			}
 
 			// Компилируем шаблон (что бы это не означало ;))
-			$this->tpl->compile($template);
+			$tpl->compile('blockPro');
 
 			// Выводим результат
-			return $this->tpl->result[$template];
+			return $tpl->result['blockPro'];
 		}
 
 		/*
@@ -667,7 +662,7 @@ if(!class_exists('BlockPro')) {
 		public function showOutput($output)
 		{
 			echo $output;
-			echo '<hr>';
+			// echo '<hr>';
 			// echo "<pre class='orange'>"; print_r($output); echo "</pre>";
 			// echo "<hr>";
 		}
