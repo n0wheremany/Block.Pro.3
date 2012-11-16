@@ -222,6 +222,10 @@ if(!class_exists('BlockPro')) {
 				case 'random':					// Случайные
 					$sort = 'RAND() ';
 					break;
+
+				case 'title':					// По алфавиту
+					$sort = 'title ';
+					break;
 				
 				default:						// Топ как в DLE (сортировка по умолчанию)
 					$sort = 'rating '.$ordering.', comm_num '.$ordering.', news_read ';
@@ -695,7 +699,7 @@ if(!class_exists('BlockPro')) {
 		'noicon'		=> !empty($noicon)?$noicon:'noicon.png',					// Заглушка для иконок категорий
 
 		'day'			=> !empty($day)?$day:false,									// Временной период для отбора новостей		
-		'sort'			=> !empty($sort)?$sort:'top',								// Сортировка (top, date, comms, rating, views)
+		'sort'			=> !empty($sort)?$sort:'top',								// Сортировка (top, date, comms, rating, views, title)
 		'order'			=> !empty($order)?$order:'new',								// Направление сортировки
 
 
