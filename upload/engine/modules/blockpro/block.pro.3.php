@@ -384,6 +384,9 @@ if(!class_exists('BlockPro')) {
 							"'\[rating\\](.*?)\[/rating\]'si"                 => $newsItem['allow_rate']?'\\1':'',
 							"'\[allow-comm\\](.*?)\[/allow-comm\]'si"         => $newsItem['allow_comm']?'\\1':'',
 							"'\[not-allow-comm\\](.*?)\[/not-allow-comm\]'si" => !$newsItem['allow_comm']?'\\1':'',
+							"'#\\{title limit=['\"](.+?)['\"]\\}#ie"	  => '$this->textLimit($newsItem[title],'\\1')',
+							"'#\\{short-story limit=['\"](.+?)['\"]\\}#ie"	  => '$this->textLimit($newsItem[short_story],'\\1')',
+							"'#\\{full-stor limit=['\"](.+?)['\"]\\}#ie"	  => '$this->textLimit($newsItem[full_story],'\\1')',							
 						)
 
 					);
